@@ -100,6 +100,11 @@ export default async function OrderDetailPage({
                       {" · GST "}
                       {l.gstRatePct.toString()}%
                     </p>
+                    {l.remarks ? (
+                      <p className="mt-1 rounded-lg bg-muted/60 px-2 py-1 text-xs italic text-muted-foreground">
+                        {l.remarks}
+                      </p>
+                    ) : null}
                   </div>
                   <p className="shrink-0 text-sm font-semibold tabular-nums">
                     {formatINR(l.lineNet.toString())}

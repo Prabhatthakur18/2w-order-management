@@ -42,5 +42,10 @@ export type DealerDetail = {
     address: string;
     contactNo: string;
   }[];
-  printingFrames: { id: string; label: string; isDefault: boolean }[];
+  printingFrames: {
+    id: string;
+    label: string;
+    isDefault: boolean;
+    fileAssetId: string;
+  }[];
 };

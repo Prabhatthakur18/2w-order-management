@@ -453,6 +453,9 @@ model OrderLine {
   gstAmount     Decimal @db.Decimal(14, 2) @default(0)
   lineNet       Decimal @db.Decimal(14, 2)
 
+  // Per-item instruction for production/dispatch (e.g. packing or finish notes)
+  remarks String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

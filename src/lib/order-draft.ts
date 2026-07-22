@@ -24,6 +24,8 @@ export const orderLineSchema = z.object({
   qty: z.number().int().positive(),
   unitPrice: z.string(),
   gstRatePct: z.string(),
+  // Per-item instruction for production/dispatch.
+  remarks: z.string().max(500).default(""),
 });
 
 export type OrderLineDraft = z.infer<typeof orderLineSchema>;

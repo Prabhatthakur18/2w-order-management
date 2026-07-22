@@ -105,6 +105,11 @@ export function StepReview({
                 <p className="text-xs text-muted-foreground">
                   {l.qty} {l.packingUnit} × {formatINR(l.unitPrice)}
                 </p>
+                {l.remarks ? (
+                  <p className="mt-1 rounded-lg bg-muted/60 px-2 py-1 text-xs italic text-muted-foreground">
+                    {l.remarks}
+                  </p>
+                ) : null}
               </div>
               <p className="shrink-0 text-sm font-semibold tabular-nums">
                 {formatINR(totals.lines[i]?.net.toString() ?? "0")}

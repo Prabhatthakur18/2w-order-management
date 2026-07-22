@@ -45,6 +45,7 @@ export async function loadDealerDetail(dealerId: string) {
       id: f.id,
       label: f.label,
       isDefault: f.isDefault,
+      fileAssetId: f.fileAssetId,
     })),
   };
 }

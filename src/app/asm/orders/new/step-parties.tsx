@@ -1,10 +1,18 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { Loader2, MapPin, Store } from "lucide-react";
+import {
+  Image as ImageIcon,
+  Loader2,
+  MapPin,
+  Store,
+  Upload,
+} from "lucide-react";
 import type { OrderDraft } from "@/lib/order-draft";
-import { Card, Field, Input, Select, Textarea } from "@/components/ui";
+import { Button, Card, Field, Input, Select, Textarea } from "@/components/ui";
+import { ImageUpload } from "@/components/image-upload";
 import { loadDealerDetail } from "./actions";
+import { uploadPrintingFrame } from "./upload-frame";
 import type { DealerDetail, DealerOption } from "./types";
 
 /**
@@ -23,11 +31,20 @@ export function StepParties({
   const [detail, setDetail] = useState<DealerDetail | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  // Frames uploaded in this session, merged with those already on record.
+  const [addedFrames, setAddedFrames] = useState<
+    { id: string; label: string; isDefault: boolean; fileAssetId: string }[]
+  >([]);
+  const [showUpload, setShowUpload] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
   useEffect(() => {
     if (!draft.dealerId) {
       setDetail(null);
       return;
     }
+    setAddedFrames([]);
     startTransition(async () => {
       const d = await loadDealerDetail(draft.dealerId);
       setDetail(d);
@@ -35,6 +52,41 @@ export function StepParties({
   }, [draft.dealerId]);
 
   const dealer = dealers.find((d) => d.id === draft.dealerId);
+
+  const frames = [...(detail?.printingFrames ?? []), ...addedFrames];
+  const selectedFrame = frames.find((f) => f.id === draft.printingFrameId);
+
+  async function handleUpload(file: File, label: string) {
+    setUploadError(null);
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.set("dealerId", draft.dealerId);
+      fd.set("label", label);
+      fd.set("file", file);
+
+      const result = await uploadPrintingFrame(fd);
+      if (result.ok) {
+        setAddedFrames((prev) => [
+          ...prev,
+          {
+            id: result.id,
+            label: result.label,
+            isDefault: false,
+            fileAssetId: result.fileAssetId,
+          },
+        ]);
+        onChange({ printingFrameId: result.id });
+        setShowUpload(false);
+      } else {
+        setUploadError(result.error);
+      }
+    } catch {
+      setUploadError("Upload failed. Check your connection and try again.");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -174,8 +226,13 @@ export function StepParties({
 
       {draft.dealerId ? (
         <Card>
+          <div className="mb-3 flex items-center gap-2">
+            <ImageIcon className="h-4 w-4 text-muted-foreground" />
+            <h4 className="text-sm font-bold">Printing frame</h4>
+          </div>
+
           <Field
-            label="Printing frame"
+            label="Artwork"
             htmlFor="frame"
             hint="Stored against the dealer and reused across orders."
           >
@@ -186,11 +243,9 @@ export function StepParties({
               disabled={isPending}
             >
               <option value="">
-                {detail?.printingFrames.length
-                  ? "Select artwork"
-                  : "No artwork on file"}
+                {frames.length ? "Select artwork" : "No artwork on file"}
               </option>
-              {detail?.printingFrames.map((f) => (
+              {frames.map((f) => (
                 <option key={f.id} value={f.id}>
                   {f.label}
                   {f.isDefault ? " (default)" : ""}
@@ -198,6 +253,56 @@ export function StepParties({
               ))}
             </Select>
           </Field>
+
+          {/* Preview of the selected artwork, served through the authenticated route */}
+          {selectedFrame?.fileAssetId ? (
+            <div className="mt-3 overflow-hidden rounded-xl border border-border bg-muted">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={`/api/files/${selectedFrame.fileAssetId}`}
+                alt={`${selectedFrame.label} artwork`}
+                className="max-h-48 w-full object-contain"
+              />
+            </div>
+          ) : null}
+
+          <div className="mt-3 border-t border-border pt-3">
+            {!showUpload ? (
+              <Button
+                variant="secondary"
+                className="w-full"
+                onClick={() => setShowUpload(true)}
+              >
+                <Upload className="h-4 w-4" />
+                Upload new artwork
+              </Button>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    New artwork
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowUpload(false);
+                      setUploadError(null);
+                    }}
+                    className="text-xs font-medium text-muted-foreground hover:text-foreground"
+                  >
+                    Cancel
+                  </button>
+                </div>
+
+                <ImageUpload
+                  label="Artwork"
+                  busy={uploading}
+                  error={uploadError}
+                  onUpload={handleUpload}
+                />
+              </div>
+            )}
+          </div>
         </Card>
       ) : null}
 

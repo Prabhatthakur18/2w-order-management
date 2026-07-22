@@ -28,6 +28,7 @@ const L = (
   qty,
   unitPrice,
   gstRatePct,
+  remarks: "",
 });
 
 let pass = 0;

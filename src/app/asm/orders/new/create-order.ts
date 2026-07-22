@@ -175,6 +175,7 @@ export async function createOrder(
                 gstRatePct: l.gstRatePct,
                 gstAmount: lt.gstAmount.toString(),
                 lineNet: lt.net.toString(),
+                remarks: l.remarks?.trim() || null,
               };
             }),
           },

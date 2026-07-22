@@ -29,6 +29,7 @@ dev-err.log
 
 # uploads — user files live on disk, not in git
 /.uploads/
+/.uploads-test/
 
 # typescript
 *.tsbuildinfo

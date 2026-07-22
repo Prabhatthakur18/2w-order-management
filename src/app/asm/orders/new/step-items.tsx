@@ -3,7 +3,15 @@
 import { useEffect, useState, useTransition } from "react";
 import { Loader2, Package, Plus, Trash2, TriangleAlert } from "lucide-react";
 import type { OrderDraft, OrderLineDraft } from "@/lib/order-draft";
-import { Button, Card, EmptyState, Field, Input, Select } from "@/components/ui";
+import {
+  Button,
+  Card,
+  EmptyState,
+  Field,
+  Input,
+  Select,
+  Textarea,
+} from "@/components/ui";
 import { formatINR } from "@/lib/utils";
 import { loadVehicles, loadParts, loadColours, loadPrice } from "./actions";
 import type { OemOption } from "./types";
@@ -36,6 +44,7 @@ export function StepItems({
   const [partId, setPartId] = useState("");
   const [colourId, setColourId] = useState("");
   const [qty, setQty] = useState("1");
+  const [lineRemarks, setLineRemarks] = useState("");
 
   const [vehicles, setVehicles] = useState<Option[]>([]);
   const [parts, setParts] = useState<PartOption[]>([]);
@@ -120,11 +129,16 @@ export function StepItems({
       qty: qtyNum,
       unitPrice: price,
       gstRatePct: part.gstRatePct,
+      remarks: lineRemarks.trim(),
     };
 
-    // Same SKU added twice merges quantities rather than duplicating a row.
+    // Same SKU merges quantities — but only when neither carries a distinct
+    // remark, since different instructions must stay on separate lines.
     const existing = draft.lines.findIndex(
-      (l) => l.partColourId === line.partColourId,
+      (l) =>
+        l.partColourId === line.partColourId &&
+        !l.remarks &&
+        !line.remarks,
     );
     if (existing >= 0) {
       const next = [...draft.lines];
@@ -139,6 +153,15 @@ export function StepItems({
 
     setColourId("");
     setQty("1");
+    setLineRemarks("");
+  }
+
+  function setLineRemark(key: string, remarks: string) {
+    onChange({
+      lines: draft.lines.map((l) =>
+        l.key === key ? { ...l, remarks: remarks.slice(0, 500) } : l,
+      ),
+    });
   }
 
   function removeLine(key: string) {
@@ -267,6 +290,21 @@ export function StepItems({
             </p>
           ) : null}
 
+          <Field
+            label="Item remarks"
+            htmlFor="line-remarks"
+            hint="Optional — packing, finish or handling notes for this item."
+          >
+            <Textarea
+              id="line-remarks"
+              rows={2}
+              maxLength={500}
+              placeholder="e.g. pack separately, matte finish"
+              value={lineRemarks}
+              onChange={(e) => setLineRemarks(e.target.value)}
+            />
+          </Field>
+
           {colour ? (
             <p className="text-xs text-muted-foreground">
               Product code:{" "}
@@ -350,6 +388,24 @@ export function StepItems({
                     {formatINR(String(Number(l.unitPrice) * l.qty))}
                   </p>
                 </div>
+              </div>
+
+              <div className="mt-2.5 border-t border-border pt-2.5">
+                <label
+                  htmlFor={`remark-${l.key}`}
+                  className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+                >
+                  Item remarks
+                </label>
+                <Textarea
+                  id={`remark-${l.key}`}
+                  rows={2}
+                  maxLength={500}
+                  placeholder="Optional note for this item"
+                  value={l.remarks}
+                  onChange={(e) => setLineRemark(l.key, e.target.value)}
+                  className="text-sm"
+                />
               </div>
             </Card>
           ))}
