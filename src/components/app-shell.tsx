@@ -26,8 +26,10 @@ export function AppShell({
 }) {
   const meta = ROLE_META[role];
 
+  // overflow-x-hidden: glow blobs overhang the viewport by design and would
+  // otherwise widen the document, forcing a horizontal scrollbar.
   return (
-    <div className="relative min-h-dvh bg-app-wrapper">
+    <div className="relative min-h-dvh overflow-x-hidden bg-app-wrapper">
       {/* Glow blobs behind the UI */}
       <div
         className="glow-blob -top-32 -left-24 h-72 w-72 bg-primary/25"

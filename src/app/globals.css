@@ -103,6 +103,15 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+/* Outside @layer base so it is never tree-shaken. The page must never scroll
+   horizontally: decorative glow blobs deliberately overhang the viewport, and
+   without this they widen the document. */
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 @layer base {
   * {
     border-color: hsl(var(--border));
