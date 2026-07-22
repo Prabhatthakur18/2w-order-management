@@ -48,6 +48,15 @@ const config: {
     description: "Combined discount above this needs Admin approval.",
   },
   {
+    key: "order.edit_window_hours",
+    value: "24",
+    valueType: "number",
+    category: "Orders",
+    label: "Order edit window (hours)",
+    description:
+      "How long an ASM may edit a created order before it is placed automatically.",
+  },
+  {
     key: "sla.review_reminder_hours",
     value: "24",
     valueType: "number",

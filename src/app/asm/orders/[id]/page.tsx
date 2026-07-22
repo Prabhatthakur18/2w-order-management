@@ -3,9 +3,15 @@ import { CheckCircle2 } from "lucide-react";
 import { requireRole } from "@/lib/guard";
 import { db } from "@/lib/db";
 import { PageHeader } from "@/components/dashboard";
-import { Badge, Card } from "@/components/ui";
+import { Badge, ButtonLink, Card } from "@/components/ui";
 import { formatINR, formatDate } from "@/lib/utils";
 import { STATUS_LABEL, STATUS_TONE } from "@/lib/order-status";
+import {
+  getEditWindowHours,
+  isEditable,
+  sweepExpiredOrders,
+} from "@/lib/order-lifecycle";
+import { OrderActions, ProformaButton } from "./order-actions";
 
 export default async function OrderDetailPage({
   params,
@@ -18,6 +24,10 @@ export default async function OrderDetailPage({
   const { id } = await params;
   const { created } = await searchParams;
   const isAdmin = session.user.roles.includes("ADMIN");
+
+  // Place this order if its window has expired, before rendering.
+  await sweepExpiredOrders();
+  const editWindowHours = await getEditWindowHours();
 
   const order = await db.order.findFirst({
     // An ASM can only open their own orders.
@@ -33,6 +43,8 @@ export default async function OrderDetailPage({
 
   if (!order) notFound();
 
+  const editable = isEditable(order);
+
   return (
     <>
       <PageHeader title={order.orderNo} subtitle={order.dealer.name} />
@@ -40,11 +52,47 @@ export default async function OrderDetailPage({
       {created ? (
         <p className="mb-4 flex items-center gap-2 rounded-xl bg-success/10 p-3 text-sm font-medium text-success">
           <CheckCircle2 className="h-4 w-4 shrink-0" />
-          Order created successfully.
+          Order created. You can still edit it before it is placed.
         </p>
       ) : null}
 
       <div className="space-y-4">
+        {editable ? (
+          <>
+            <OrderActions
+              orderId={order.id}
+              editableUntilMs={order.editableUntil!.getTime()}
+              editWindowHours={editWindowHours}
+            />
+            <ButtonLink
+              href={`/asm/orders/${order.id}/edit`}
+              variant="secondary"
+              className="w-full"
+            >
+              Edit order
+            </ButtonLink>
+          </>
+        ) : null}
+
+        {order.piNumber ? (
+          <Card>
+            <div className="mb-2.5">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                Proforma invoice
+              </p>
+              <p className="font-mono text-sm font-semibold">
+                {order.piNumber}
+              </p>
+              {order.autoPlaced ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Placed automatically when the edit window closed.
+                </p>
+              ) : null}
+            </div>
+            <ProformaButton orderId={order.id} />
+          </Card>
+        ) : null}
+
         <Card>
           <div className="flex items-center justify-between gap-3">
             <Badge tone={STATUS_TONE[order.status]}>

@@ -350,7 +350,9 @@ model SystemConfig {
 // ─────────────────────────────────────────────────────────────
 
 enum OrderStatus {
-  DRAFT
+  DRAFT // incomplete, still in the wizard
+  CREATED // submitted; ASM may still edit until editableUntil
+  PLACED // committed, either by the ASM or by the 24h auto-confirm
   PENDING_APPROVAL
   APPROVED
   DECLINED
@@ -422,9 +424,16 @@ model Order {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  placedAt  DateTime?
+
+  // Lifecycle: CREATED until editableUntil, then PLACED.
+  // The ASM may place it early; otherwise the sweep confirms it on expiry.
+  editableUntil DateTime?
+  placedAt      DateTime?
+  placedById    String?
+  autoPlaced    Boolean   @default(false)
 
   @@index([status])
+  @@index([status, editableUntil])
   @@index([dealerId])
   @@index([createdById])
   @@index([orderNo])

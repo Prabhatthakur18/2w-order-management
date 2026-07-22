@@ -2,6 +2,8 @@ import type { OrderStatus } from "@prisma/client";
 
 export const STATUS_LABEL: Record<OrderStatus, string> = {
   DRAFT: "Draft",
+  CREATED: "Created",
+  PLACED: "Placed",
   PENDING_APPROVAL: "Awaiting approval",
   APPROVED: "Approved",
   DECLINED: "Declined",
@@ -18,6 +20,8 @@ export const STATUS_TONE: Record<
   "neutral" | "primary" | "success" | "warning" | "danger"
 > = {
   DRAFT: "neutral",
+  CREATED: "warning",
+  PLACED: "primary",
   PENDING_APPROVAL: "warning",
   APPROVED: "primary",
   DECLINED: "danger",
