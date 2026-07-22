@@ -1,0 +1,770 @@
+// Dealer Order Management System — Prisma schema
+// See TECH_STACK.md for the reasoning behind these models.
+//
+// Money rule: every monetary column is Decimal(14,2). Never Float.
+// Document rule: generated PDFs/PIs are not stored. Only their numbers are.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────
+// IDENTITY & ACCESS
+// ─────────────────────────────────────────────────────────────
+
+enum Role {
+  ADMIN
+  ASM
+  PLANT_OPS
+  ACCOUNTS
+  DISPATCH
+  DEALER // dormant in phase 1 — see TECH_STACK.md §2
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  passwordHash String
+  phone        String?
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+
+  roles UserRole[]
+
+  // A DEALER-role user is linked to the dealer they represent.
+  dealerId String?
+  dealer   Dealer? @relation(fields: [dealerId], references: [id])
+
+  createdOrders  Order[]           @relation("OrderCreatedBy")
+  auditLogs      AuditLog[]
+  notifications  Notification[]
+  documentIssues DocumentIssueLog[]
+  uploadedFiles  FileAsset[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([email])
+  @@index([dealerId])
+}
+
+model UserRole {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role
+
+  @@unique([userId, role])
+  @@index([userId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// ADMIN-CONTROLLED MASTERS
+// ─────────────────────────────────────────────────────────────
+
+model Dealer {
+  id          String  @id @default(cuid())
+  code        String  @unique
+  name        String
+  gstin       String?
+  address     String
+  city        String
+  state       String
+  pincode     String
+  contactName String?
+  contactNo   String
+  email       String?
+  isActive    Boolean @default(true)
+
+  // Credit terms — Admin controlled
+  creditLimit    Decimal? @db.Decimal(14, 2)
+  creditDays     Int?
+  priceTierId    String?
+  priceTier      DealerPriceTier? @relation(fields: [priceTierId], references: [id])
+
+  subDealers     SubDealer[]
+  printingFrames PrintingFrame[]
+  orders         Order[]
+  users          User[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([code])
+  @@index([isActive])
+}
+
+// Report Rec #1 — replaces free-text sub-dealer entry.
+model SubDealer {
+  id        String  @id @default(cuid())
+  dealerId  String
+  dealer    Dealer  @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  name      String
+  address   String
+  city      String?
+  state     String?
+  pincode   String?
+  contactNo String
+  email     String?
+  isActive  Boolean @default(true)
+
+  // Set when an ASM creates one inline; Admin reviews later.
+  isVerified Boolean @default(false)
+
+  orders Order[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([dealerId])
+  @@index([name])
+}
+
+// Report Rec #2 — artwork stored once per dealer, reused across orders.
+model PrintingFrame {
+  id          String  @id @default(cuid())
+  dealerId    String
+  dealer      Dealer  @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  label       String
+  fileAssetId String
+  fileAsset   FileAsset @relation(fields: [fileAssetId], references: [id])
+  isDefault   Boolean @default(false)
+  isActive    Boolean @default(true)
+
+  orders Order[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([dealerId])
+}
+
+model DealerPriceTier {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  isActive    Boolean  @default(true)
+
+  dealers Dealer[]
+  prices  PriceList[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ── Catalog: OEM → Vehicle → Part → PartColour ──
+
+model Oem {
+  id       String  @id @default(cuid())
+  code     String  @unique
+  name     String
+  isActive Boolean @default(true)
+
+  vehicles Vehicle[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Vehicle {
+  id       String  @id @default(cuid())
+  oemId    String
+  oem      Oem     @relation(fields: [oemId], references: [id], onDelete: Cascade)
+  code     String
+  name     String
+  isActive Boolean @default(true)
+
+  parts Part[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([oemId, code])
+  @@index([oemId])
+}
+
+enum PackingUnit {
+  PC
+  SET
+}
+
+model Part {
+  id          String      @id @default(cuid())
+  vehicleId   String
+  vehicle     Vehicle     @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  partNo      String
+  name        String
+  hsnCode     String?
+  packingUnit PackingUnit @default(PC)
+  unitsPerSet Int?
+  isActive    Boolean     @default(true)
+
+  gstSlabId String?
+  gstSlab   GstSlab? @relation(fields: [gstSlabId], references: [id])
+
+  colours PartColour[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([vehicleId, partNo])
+  @@index([vehicleId])
+  @@index([partNo])
+}
+
+model PartColour {
+  id       String  @id @default(cuid())
+  partId   String
+  part     Part    @relation(fields: [partId], references: [id], onDelete: Cascade)
+  colour   String
+  colourCode String?
+  // Report: Product Code is system-generated from OEM/Vehicle/Part/Colour.
+  productCode String @unique
+  isActive Boolean @default(true)
+
+  prices     PriceList[]
+  orderLines OrderLine[]
+  inventory  InventoryItem?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([partId, colour])
+  @@index([partId])
+  @@index([productCode])
+}
+
+// ── Pricing & tax (Admin controlled, date-effective) ──
+
+model GstSlab {
+  id         String   @id @default(cuid())
+  name       String   @unique
+  ratePct    Decimal  @db.Decimal(5, 2)
+  hsnCode    String?
+  validFrom  DateTime
+  validTo    DateTime?
+  isActive   Boolean  @default(true)
+
+  parts Part[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([validFrom, validTo])
+}
+
+// Date-effective price. An order snapshots the price in effect at order time;
+// later revisions never alter a placed order.
+model PriceList {
+  id           String   @id @default(cuid())
+  partColourId String
+  partColour   PartColour @relation(fields: [partColourId], references: [id], onDelete: Cascade)
+  priceTierId  String?
+  priceTier    DealerPriceTier? @relation(fields: [priceTierId], references: [id])
+  unitPrice    Decimal  @db.Decimal(14, 2)
+  validFrom    DateTime
+  validTo      DateTime?
+  isActive     Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([partColourId, validFrom])
+  @@index([priceTierId])
+}
+
+// Report Rec #4 — caps and stacking rules, Admin controlled.
+model DiscountRule {
+  id              String  @id @default(cuid())
+  name            String
+  maxDealerPct    Decimal @db.Decimal(5, 2)
+  maxSchemePct    Decimal @db.Decimal(5, 2)
+  maxCombinedPct  Decimal @db.Decimal(5, 2)
+  allowStacking   Boolean @default(true)
+  approvalAbovePct Decimal? @db.Decimal(5, 2)
+  isActive        Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Scheme {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  description String?
+  discountPct Decimal? @db.Decimal(5, 2)
+  flatAmount  Decimal? @db.Decimal(14, 2)
+  validFrom   DateTime
+  validTo     DateTime?
+  isActive    Boolean  @default(true)
+
+  orders Order[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([validFrom, validTo])
+}
+
+// Report Rec #10 — replaces free-text transporter entry.
+model Transporter {
+  id        String  @id @default(cuid())
+  code      String  @unique
+  name      String
+  contactNo String?
+  gstin     String?
+  isActive  Boolean @default(true)
+
+  dispatches Dispatch[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Every business toggle the report left open lives here. See TECH_STACK.md §8.
+model SystemConfig {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  valueType String   @default("string") // string | number | boolean | json
+  category  String
+  label     String
+  description String?
+
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+}
+
+// ─────────────────────────────────────────────────────────────
+// ORDERS
+// ─────────────────────────────────────────────────────────────
+
+enum OrderStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  DECLINED
+  IN_PRODUCTION
+  READY_FOR_DISPATCH
+  INVOICED
+  DISPATCHED
+  CLOSED
+  CANCELLED
+}
+
+enum PaymentMode {
+  CREDIT
+  ADVANCE
+}
+
+model Order {
+  id          String      @id @default(cuid())
+  orderNo     String      @unique
+  status      OrderStatus @default(DRAFT)
+  paymentMode PaymentMode?
+
+  dealerId    String
+  dealer      Dealer     @relation(fields: [dealerId], references: [id])
+  subDealerId String?
+  subDealer   SubDealer? @relation(fields: [subDealerId], references: [id])
+
+  printingFrameId String?
+  printingFrame   PrintingFrame? @relation(fields: [printingFrameId], references: [id])
+
+  // Module 1 — shipping
+  shippingSameAsDealer Boolean @default(true)
+  shippingAddress      String?
+  shippingCity         String?
+  shippingState        String?
+  shippingPincode      String?
+
+  // Module 2 — commercials. All Decimal(14,2).
+  totalQty          Int      @default(0)
+  grossValue        Decimal  @db.Decimal(14, 2) @default(0)
+  dealerDiscountPct Decimal? @db.Decimal(5, 2)
+  dealerDiscountAmt Decimal  @db.Decimal(14, 2) @default(0)
+  schemeId          String?
+  scheme            Scheme?  @relation(fields: [schemeId], references: [id])
+  schemeDiscountAmt Decimal  @db.Decimal(14, 2) @default(0)
+  netValue          Decimal  @db.Decimal(14, 2) @default(0) // before GST
+  gstAmount         Decimal  @db.Decimal(14, 2) @default(0)
+  totalValue        Decimal  @db.Decimal(14, 2) @default(0)
+  cashDiscountAmt   Decimal  @db.Decimal(14, 2) @default(0)
+  finalPayable      Decimal  @db.Decimal(14, 2) @default(0)
+
+  remarks String?
+
+  // Proforma Invoice — number persisted, document generated at runtime.
+  piNumber   String?   @unique
+  piIssuedAt DateTime?
+
+  createdById String
+  createdBy   User   @relation("OrderCreatedBy", fields: [createdById], references: [id])
+
+  lines       OrderLine[]
+  versions    OrderVersion[]
+  approvals   Approval[]
+  payments    Payment[]
+  production  ProductionRecord?
+  invoices    Invoice[]
+  dispatch    Dispatch?
+  documentLog DocumentIssueLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  placedAt  DateTime?
+
+  @@index([status])
+  @@index([dealerId])
+  @@index([createdById])
+  @@index([orderNo])
+  @@index([createdAt])
+}
+
+// Price snapshot lives here — reproducible even if masters change later.
+model OrderLine {
+  id      String @id @default(cuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  partColourId String
+  partColour   PartColour @relation(fields: [partColourId], references: [id])
+
+  productCode String
+  description String
+  packingUnit PackingUnit
+  qty         Int
+
+  unitPrice     Decimal @db.Decimal(14, 2)
+  lineGross     Decimal @db.Decimal(14, 2)
+  discountPct   Decimal @db.Decimal(5, 2) @default(0)
+  discountAmt   Decimal @db.Decimal(14, 2) @default(0)
+  gstRatePct    Decimal @db.Decimal(5, 2) @default(0)
+  gstAmount     Decimal @db.Decimal(14, 2) @default(0)
+  lineNet       Decimal @db.Decimal(14, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([partColourId])
+}
+
+// Report Rec #7 — decline/modify audit trail.
+model OrderVersion {
+  id            String   @id @default(cuid())
+  orderId       String
+  order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  versionNo     Int
+  snapshot      Json
+  changeReason  String?
+  changedById   String?
+  createdAt     DateTime @default(now())
+
+  @@unique([orderId, versionNo])
+  @@index([orderId])
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  DECLINED
+  EXPIRED
+}
+
+// Report Rec #6 — the workflow's highest-risk gate, now with SLA tracking.
+model Approval {
+  id       String         @id @default(cuid())
+  orderId  String
+  order    Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  status   ApprovalStatus @default(PENDING)
+
+  requestedAt   DateTime  @default(now())
+  respondedAt   DateTime?
+  respondedById String?
+  comments      String?
+
+  // SLA — intervals come from SystemConfig.
+  reminderDueAt   DateTime?
+  escalationDueAt DateTime?
+  reminderSentAt  DateTime?
+  escalatedAt     DateTime?
+
+  @@index([orderId])
+  @@index([status])
+  @@index([reminderDueAt])
+}
+
+enum PaymentStatus {
+  PENDING
+  PARTIAL
+  RECEIVED
+  VERIFIED
+}
+
+model Payment {
+  id      String        @id @default(cuid())
+  orderId String
+  order   Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  mode    PaymentMode
+  status  PaymentStatus @default(PENDING)
+  amount  Decimal       @db.Decimal(14, 2)
+
+  referenceNo String?
+  paidAt      DateTime?
+  verifiedAt  DateTime?
+  verifiedById String?
+
+  receipts PaymentReceipt[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId])
+}
+
+model PaymentReceipt {
+  id          String    @id @default(cuid())
+  paymentId   String
+  payment     Payment   @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  fileAssetId String
+  fileAsset   FileAsset @relation(fields: [fileAssetId], references: [id])
+  uploadedAt  DateTime  @default(now())
+
+  @@index([paymentId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// PRODUCTION & INVENTORY (Report Rec #9)
+// ─────────────────────────────────────────────────────────────
+
+model ProductionRecord {
+  id      String @id @default(cuid())
+  orderId String @unique
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  stockQty      Int @default(0)
+  inProcessQty  Int @default(0)
+  holdQty       Int @default(0)
+  dispatchQty   Int @default(0)
+
+  startedAt   DateTime?
+  completedAt DateTime?
+  notes       String?
+
+  transactions InventoryTransaction[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Current stock per SKU. Row-locked during transitions to prevent
+// the double-counting the report warns about.
+model InventoryItem {
+  id           String     @id @default(cuid())
+  partColourId String     @unique
+  partColour   PartColour @relation(fields: [partColourId], references: [id], onDelete: Cascade)
+
+  availableQty Int @default(0)
+  reservedQty  Int @default(0)
+  inProcessQty Int @default(0)
+  holdQty      Int @default(0)
+  confirmedQty Int @default(0)
+
+  version Int @default(0) // optimistic concurrency
+
+  transactions InventoryTransaction[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum InventoryState {
+  RESERVED
+  IN_PRODUCTION
+  ON_HOLD
+  CONFIRMED
+  DISPATCHED
+  RELEASED
+}
+
+// Append-only ledger. Never mutate; always insert.
+model InventoryTransaction {
+  id              String         @id @default(cuid())
+  inventoryItemId String
+  inventoryItem   InventoryItem  @relation(fields: [inventoryItemId], references: [id])
+  productionId    String?
+  production      ProductionRecord? @relation(fields: [productionId], references: [id])
+
+  fromState InventoryState?
+  toState   InventoryState
+  qty       Int
+  reason    String?
+  actorId   String?
+
+  createdAt DateTime @default(now())
+
+  @@index([inventoryItemId])
+  @@index([productionId])
+  @@index([createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────
+// ACCOUNTS & DISPATCH
+// ─────────────────────────────────────────────────────────────
+
+enum InvoiceType {
+  DUMMY
+  FINAL
+}
+
+// Uploaded invoice documents (Module 5). Distinct from the runtime-generated PI.
+model Invoice {
+  id      String      @id @default(cuid())
+  orderId String
+  order   Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  type    InvoiceType
+  invoiceNo String?   @unique
+
+  amount          Decimal @db.Decimal(14, 2)
+  cashDiscountPct Decimal? @db.Decimal(5, 2)
+  cashDiscountAmt Decimal @db.Decimal(14, 2) @default(0)
+
+  fileAssetId String?
+  fileAsset   FileAsset? @relation(fields: [fileAssetId], references: [id])
+
+  issuedAt   DateTime?
+  uploadedById String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId])
+}
+
+model Dispatch {
+  id      String @id @default(cuid())
+  orderId String @unique
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  boxName       String?
+  dispatchDate  DateTime?
+  transporterId String?
+  transporter   Transporter? @relation(fields: [transporterId], references: [id])
+  docketNumber  String?
+  remarks       String?
+
+  dispatchedAt DateTime?
+  deliveredAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([transporterId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// DOCUMENTS, FILES, AUDIT
+// ─────────────────────────────────────────────────────────────
+
+// PI/invoice numbering per financial year. Numbers persist; documents do not.
+model DocumentSequence {
+  id            String @id @default(cuid())
+  docType       String // PI | INVOICE | ORDER
+  financialYear String // e.g. "2026-27"
+  prefix        String
+  lastNumber    Int    @default(0)
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([docType, financialYear])
+}
+
+// Who generated which document, when. The file itself is never stored.
+model DocumentIssueLog {
+  id         String   @id @default(cuid())
+  orderId    String?
+  order      Order?   @relation(fields: [orderId], references: [id])
+  docType    String
+  docNumber  String?
+  issuedById String
+  issuedBy   User     @relation(fields: [issuedById], references: [id])
+  issuedAt   DateTime @default(now())
+
+  @@index([orderId])
+  @@index([issuedAt])
+}
+
+// Uploaded files only — artwork, receipts, invoices. Stored on VPS disk,
+// outside the web root. DB holds the pointer, never the binary.
+model FileAsset {
+  id           String @id @default(cuid())
+  path         String // relative to upload root
+  originalName String
+  mimeType     String
+  sizeBytes    Int
+  checksum     String?
+
+  uploadedById String
+  uploadedBy   User   @relation(fields: [uploadedById], references: [id])
+
+  printingFrames PrintingFrame[]
+  receipts       PaymentReceipt[]
+  invoices       Invoice[]
+
+  createdAt DateTime @default(now())
+
+  @@index([uploadedById])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  entityType String
+  entityId   String
+  action     String
+  fromValue  Json?
+  toValue    Json?
+
+  actorId String?
+  actor   User?   @relation(fields: [actorId], references: [id])
+
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([actorId])
+  @@index([createdAt])
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+}
+
+model Notification {
+  id        String              @id @default(cuid())
+  userId    String
+  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel   NotificationChannel @default(IN_APP)
+  event     String
+  title     String
+  body      String
+  link      String?
+  isRead    Boolean             @default(false)
+  sentAt    DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+}

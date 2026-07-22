@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-50: oklch(0.97 0.02 250);
+  --color-brand-100: oklch(0.93 0.04 250);
+  --color-brand-500: oklch(0.58 0.16 250);
+  --color-brand-600: oklch(0.51 0.17 250);
+  --color-brand-700: oklch(0.44 0.16 250);
+}
+
+:root {
+  --bg: oklch(0.98 0.005 250);
+  --surface: oklch(1 0 0);
+  --border: oklch(0.92 0.008 250);
+  --text: oklch(0.22 0.02 250);
+  --muted: oklch(0.55 0.02 250);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: oklch(0.18 0.015 250);
+    --surface: oklch(0.23 0.018 250);
+    --border: oklch(0.32 0.02 250);
+    --text: oklch(0.95 0.005 250);
+    --muted: oklch(0.68 0.015 250);
+  }
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  /* Safe area for iOS bottom nav */
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Touch targets never below 44px — TECH_STACK.md §5 rule 2 */
+button,
+a[role="button"],
+[data-touch] {
+  min-height: 44px;
+}
+
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea {
+    /* Prevents iOS zoom-on-focus */
+    font-size: 16px;
+  }
+}
