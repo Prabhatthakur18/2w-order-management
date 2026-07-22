@@ -56,3 +56,76 @@
  ✓ Compiled in 109ms (235 modules)
  ✓ Compiled in 90ms (235 modules)
  ✓ Compiled in 82ms (235 modules)
+ ○ Compiling /login ...
+ ✓ Compiled /login in 780ms (751 modules)
+ ✓ Compiled / in 464ms (753 modules)
+ GET / 200 in 891ms
+ POST /login 303 in 3064ms
+ ✓ Compiled /asm in 477ms (815 modules)
+ GET /asm 200 in 1963ms
+ POST /login 303 in 2253ms
+ POST / 200 in 2345ms
+ GET /asm 200 in 148ms
+ POST /login 303 in 443ms
+ POST /asm 200 in 511ms
+ GET /asm 200 in 161ms
+ POST /login 303 in 377ms
+ POST /asm 200 in 436ms
+ GET /asm 200 in 144ms
+ POST /login 303 in 420ms
+ POST /asm 200 in 490ms
+ ○ Compiling /_not-found ...
+ ✓ Compiled /_not-found in 949ms (820 modules)
+ GET /asm/orders/new 404 in 1192ms
+ GET /asm/orders/new 404 in 338ms
+ GET /asm 200 in 379ms
+ GET /asm/dealers 404 in 44ms
+ GET /asm/dealers 404 in 102ms
+ GET /asm 200 in 271ms
+ GET /asm/orders 404 in 43ms
+ GET /asm/orders 404 in 121ms
+ GET /asm 200 in 209ms
+ ✓ Compiled in 981ms (1148 modules)
+ GET /asm 200 in 290ms
+ ✓ Compiled in 269ms (822 modules)
+ GET /asm 200 in 99ms
+ ✓ Compiled in 467ms (822 modules)
+ GET /asm 200 in 104ms
+ ✓ Compiled in 378ms (838 modules)
+ GET /asm 200 in 114ms
+ ✓ Compiled in 435ms (851 modules)
+ ⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+ GET /asm 200 in 206ms
+ GET /asm 200 in 403ms
+ ✓ Compiled in 307ms (853 modules)
+ GET /asm 200 in 105ms
+ ✓ Compiled in 109ms (241 modules)
+ ✓ Compiled in 159ms (241 modules)
+ GET /asm 200 in 62ms
+ GET /asm 200 in 38ms
+ ✓ Compiled in 318ms (853 modules)
+ GET /asm 200 in 104ms
+ ✓ Compiled /login in 361ms (847 modules)
+ GET /login 200 in 536ms
+ GET /asm 200 in 64ms
+ GET /login 200 in 55ms
+ ○ Compiling /_not-found ...
+ ✓ Compiled /_not-found in 728ms (852 modules)
+ GET /asm/orders/new 404 in 1034ms
+ GET /asm/orders/new 404 in 89ms
+ GET /asm/orders/new 404 in 209ms
+ GET /asm 200 in 377ms
+ GET /asm 200 in 119ms
+ GET /asm/orders 404 in 78ms
+ GET /asm/orders 404 in 140ms
+ GET /asm 200 in 263ms
+ ○ Compiling /api/auth/[...nextauth] ...
+ ✓ Compiled /api/auth/[...nextauth] in 531ms (627 modules)
+ GET /api/auth/csrf 200 in 2560ms
+ POST /api/auth/callback/credentials 302 in 2346ms
+ GET /asm 200 in 292ms
+ GET /asm 200 in 77ms
+ ✓ Compiled in 3s (242 modules)
+ GET /asm 200 in 235ms
+ ✓ Compiled in 180ms (242 modules)
+ GET /asm 200 in 96ms

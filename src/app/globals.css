@@ -1,55 +1,290 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
-@theme {
-  --color-brand-50: oklch(0.97 0.02 250);
-  --color-brand-100: oklch(0.93 0.04 250);
-  --color-brand-500: oklch(0.58 0.16 250);
-  --color-brand-600: oklch(0.51 0.17 250);
-  --color-brand-700: oklch(0.44 0.16 250);
-}
+/*
+ * Design tokens from the MIS Dashboard design system.
+ * Source: Master Design Artifact — vibrant corporate / premium glassmorphism.
+ *
+ * Layout proportions are scaled for mobile: the source is a desktop dashboard
+ * (rounded-[40px] islands, w-72 sidebar), which does not fit a 360px screen.
+ * Colour, type, shadow and motion tokens are carried over as-is.
+ */
+
+@custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --bg: oklch(0.98 0.005 250);
-  --surface: oklch(1 0 0);
-  --border: oklch(0.92 0.008 250);
-  --text: oklch(0.22 0.02 250);
-  --muted: oklch(0.55 0.02 250);
+  --background: 210 40% 98%;
+  --foreground: 222 47% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+  --primary: 217 91% 60%;
+  --primary-foreground: 0 0% 100%;
+  --primary-glow: 217 91% 70%;
+  --secondary: 217 33% 94%;
+  --secondary-foreground: 222 47% 11%;
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 16% 47%;
+  --accent: 217 33% 94%;
+  --accent-foreground: 222 47% 11%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --success: 142 71% 45%;
+  --success-foreground: 0 0% 100%;
+  --warning: 38 92% 50%;
+  --warning-foreground: 0 0% 100%;
+  --border: 214 32% 91%;
+  --input: 214 32% 91%;
+  --ring: 217 91% 60%;
+  --radius: 0.75rem;
+
+  /* Brand */
+  --brand-orange: 32 100% 50%;
+  --brand-yellow: 48 100% 50%;
+  --app-wrapper: 30 100% 95%;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: oklch(0.18 0.015 250);
-    --surface: oklch(0.23 0.018 250);
-    --border: oklch(0.32 0.02 250);
-    --text: oklch(0.95 0.005 250);
-    --muted: oklch(0.68 0.015 250);
+.dark {
+  --background: 222 47% 11%;
+  --foreground: 210 40% 98%;
+  --card: 222 47% 15%;
+  --card-foreground: 210 40% 98%;
+  --popover: 222 47% 15%;
+  --popover-foreground: 210 40% 98%;
+  --primary: 217 91% 60%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 217 33% 25%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 217 33% 18%;
+  --muted-foreground: 215 20% 65%;
+  --accent: 217 33% 25%;
+  --accent-foreground: 210 40% 98%;
+  --destructive: 0 63% 31%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 217 33% 18%;
+  --input: 217 33% 18%;
+  --ring: 217 91% 60%;
+  --app-wrapper: 222 47% 9%;
+}
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-primary-glow: hsl(var(--primary-glow));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
+  --color-warning: hsl(var(--warning));
+  --color-warning-foreground: hsl(var(--warning-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-brand-orange: hsl(var(--brand-orange));
+  --color-brand-yellow: hsl(var(--brand-yellow));
+  --color-app-wrapper: hsl(var(--app-wrapper));
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    -webkit-font-smoothing: antialiased;
+    font-family:
+      "Roc Grotesk",
+      ui-sans-serif,
+      system-ui,
+      -apple-system,
+      "Segoe UI",
+      Roboto,
+      sans-serif;
+    /* iOS home-indicator clearance for the bottom nav */
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Touch targets never below 44px — mobile-first rule */
+  button,
+  a[role="button"],
+  [data-touch] {
+    min-height: 44px;
+  }
+
+  @media (max-width: 640px) {
+    input,
+    select,
+    textarea {
+      /* Prevents iOS zoom-on-focus */
+      font-size: 16px;
+    }
+  }
+
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
   }
 }
 
-html,
-body {
-  background: var(--bg);
-  color: var(--text);
+@layer utilities {
+  .gradient-primary {
+    background-image: linear-gradient(
+      135deg,
+      hsl(var(--primary)),
+      hsl(var(--primary-glow))
+    );
+  }
+
+  .gradient-hero {
+    background-image: linear-gradient(
+      180deg,
+      hsl(210 40% 98%),
+      hsl(217 91% 95%)
+    );
+  }
+
+  .dark .gradient-hero {
+    background-image: linear-gradient(
+      180deg,
+      hsl(222 47% 11%),
+      hsl(217 40% 16%)
+    );
+  }
+
+  .text-gradient-premium {
+    background-image: linear-gradient(
+      135deg,
+      hsl(var(--primary)),
+      hsl(270 50% 50%)
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* Frosted glass — sidebars, premium cards, active states */
+  .glass-card {
+    background-image: linear-gradient(
+      145deg,
+      rgb(255 255 255 / 0.95) 0%,
+      rgb(255 255 255 / 0.85) 100%
+    );
+    backdrop-filter: blur(20px);
+    border: 1px solid rgb(255 255 255 / 0.6);
+    box-shadow:
+      0 10px 40px rgb(0 0 0 / 0.04),
+      inset 0 1px 0 rgb(255 255 255 / 0.9);
+  }
+
+  .dark .glass-card {
+    background-image: linear-gradient(
+      145deg,
+      hsl(222 47% 17% / 0.95) 0%,
+      hsl(222 47% 15% / 0.85) 100%
+    );
+    border-color: hsl(217 33% 28% / 0.6);
+    box-shadow:
+      0 10px 40px rgb(0 0 0 / 0.3),
+      inset 0 1px 0 rgb(255 255 255 / 0.05);
+  }
+
+  .shadow-float {
+    box-shadow: 0 10px 40px rgb(0 0 0 / 0.04);
+  }
+
+  .dark .shadow-float {
+    box-shadow: 0 10px 40px rgb(0 0 0 / 0.25);
+  }
+
+  .card-hover {
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .card-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px rgb(0 0 0 / 0.08);
+  }
+
+  /* Soft blurred colour blobs sitting behind the UI */
+  .glow-blob {
+    position: absolute;
+    border-radius: 9999px;
+    filter: blur(100px);
+    opacity: 0.5;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .animate-in-slide-right {
+    animation: slide-in-right 0.3s ease-out;
+  }
+
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  .animate-pulse-slow {
+    animation: pulse-slow 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
 }
 
-body {
-  -webkit-font-smoothing: antialiased;
-  /* Safe area for iOS bottom nav */
-  padding-bottom: env(safe-area-inset-bottom);
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
-/* Touch targets never below 44px — TECH_STACK.md §5 rule 2 */
-button,
-a[role="button"],
-[data-touch] {
-  min-height: 44px;
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-20px);
+  }
 }
 
-@media (max-width: 640px) {
-  input,
-  select,
-  textarea {
-    /* Prevents iOS zoom-on-focus */
-    font-size: 16px;
+@keyframes pulse-slow {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

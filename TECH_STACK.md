@@ -58,6 +58,8 @@ Derived from the flowchart lanes, reconciled against the roles named by the busi
 | Runtime | Node.js | 22.x LTS *(22.12.0 verified on dev machine)* |
 | UI | React | 19.x |
 | Styling | Tailwind CSS | 4.x |
+| Design system | **MIS Dashboard tokens** (see §5A) | — |
+| Icons | **Lucide React** | 1.x |
 | Components | shadcn/ui (Radix primitives) | latest |
 | Database | PostgreSQL | 16.x |
 | ORM | Prisma | 6.x |
@@ -202,6 +204,59 @@ The PI is issued from the ASM/order stage before the tax invoice, and is generat
 - **Content** rendered live: parties, line items with prices, discounts, per-item GST, totals, payment terms
 - **Regeneration** always reflects current order state; the number stays stable
 - **Every issuance** writes a `DocumentIssueLog` row for audit
+
+---
+
+## 5A. Design System
+
+Tokens come from the **MIS Dashboard design system** (`Master Design Artifact.md`), shared with the existing Amato MIS product so the two read as one family.
+
+### Tokens
+
+| Token | Light | Dark |
+|---|---|---|
+| Background | `210 40% 98%` | `222 47% 11%` |
+| Foreground | `222 47% 11%` | `210 40% 98%` |
+| Primary | `217 91% 60%` (vibrant blue) | same |
+| Primary glow | `217 91% 70%` | same |
+| Card | `0 0% 100%` | `222 47% 15%` |
+| Muted | `210 40% 96%` | `217 33% 18%` |
+| Destructive | `0 84% 60%` | `0 63% 31%` |
+| Border / Input | `214 32% 91%` | `217 33% 18%` |
+| Ring (focus) | `217 91% 60%` | same |
+| Radius | `0.75rem` base | — |
+
+Brand accents: orange `#FF8A00`, yellow `#FFCC00`, app wrapper `#fff2e6`.
+
+All tokens are HSL CSS variables in [globals.css](src/app/globals.css), exposed to Tailwind 4 via `@theme inline`. Tailwind 4 is CSS-first, so the artifact's `tailwind.config.ts` maps to `@theme` rather than a JS config file.
+
+### Signature patterns
+
+| Pattern | Utility | Use |
+|---|---|---|
+| Frosted glass | `.glass-card` | Sidebar, header, bottom nav, login card |
+| Glow blobs | `.glow-blob` | Blurred colour orbs behind the UI |
+| Floating island | `rounded-[32px]` + `.shadow-float` | Sidebar and main panels |
+| Gradient text | `.text-gradient-premium` | Product wordmark |
+| Primary gradient | `.gradient-primary` | Primary buttons |
+| Card lift | `.card-hover` | KPI tiles on hover |
+
+Motion: 300–400ms `cubic-bezier(0.4, 0, 0.2, 1)`, icons scale on hover, buttons `active:scale-95`. All animation is suppressed under `prefers-reduced-motion`.
+
+### Mobile adaptation
+
+The source artifact describes a **desktop** dashboard — `w-72` sidebar, `rounded-[40px]` islands, `p-6` wrappers. Those proportions do not survive a 360px screen, so:
+
+| Source (desktop) | Ours (mobile) |
+|---|---|
+| `rounded-[40px]` | `rounded-[32px]` desktop, `rounded-3xl` mobile |
+| Persistent `w-72` sidebar | Bottom nav under `md`, sidebar island from `md` up |
+| `h-20` header | `h-16` mobile header, no header on desktop |
+| `p-6` wrapper | `p-4` desktop, edge-to-edge mobile |
+
+Colour, type, shadow and motion tokens carry over unchanged — only layout proportions are scaled.
+
+**Light is the primary mode**, matching the source. Dark tokens are defined and `darkMode: ["class"]` semantics are preserved via a `dark` class on `<html>`; it is opt-in, not driven by OS preference.
 
 ---
 

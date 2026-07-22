@@ -10,12 +10,14 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
-  themeColor: "#1e40af",
+  themeColor: "#2563eb",
 };
 
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  // Light is the definitive mode per the design system; dark is opt-in
+  // via a `dark` class on <html>, matching darkMode: ["class"].
   return (
     <html lang="en">
       <body className="min-h-dvh antialiased">{children}</body>

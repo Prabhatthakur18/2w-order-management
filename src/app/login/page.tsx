@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { AuthError } from "next-auth";
+import { AlertCircle } from "lucide-react";
 import { auth, signIn } from "@/auth";
 import { landingFor } from "@/lib/roles";
 
@@ -32,24 +33,36 @@ export default async function LoginPage({
   }
 
   return (
-    <main className="flex min-h-dvh items-center justify-center px-4 py-10">
-      <div className="w-full max-w-sm">
-        <div className="mb-6 text-center">
-          <h1 className="text-2xl font-semibold tracking-tight">2W Orders</h1>
-          <p className="mt-1 text-sm text-[var(--muted)]">
+    <main className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-app-wrapper px-4 py-10">
+      <div
+        className="glow-blob -top-20 -left-20 h-80 w-80 bg-primary/30"
+        aria-hidden
+      />
+      <div
+        className="glow-blob -bottom-24 -right-16 h-80 w-80 bg-brand-orange/25"
+        aria-hidden
+      />
+
+      <div className="relative z-10 w-full max-w-sm">
+        <div className="mb-7 text-center">
+          <h1 className="text-gradient-premium text-3xl font-bold tracking-tight">
+            2W Orders
+          </h1>
+          <p className="mt-1.5 text-sm text-muted-foreground">
             Dealer order management
           </p>
         </div>
 
         <form
           action={login}
-          className="space-y-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-sm"
+          className="glass-card space-y-4 rounded-3xl p-6"
         >
           {error ? (
             <p
               role="alert"
-              className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300"
+              className="flex items-center gap-2 rounded-xl bg-destructive/10 px-3 py-2.5 text-sm font-medium text-destructive"
             >
+              <AlertCircle className="h-4 w-4 shrink-0" />
               Incorrect email or password.
             </p>
           ) : null}
@@ -57,7 +70,7 @@ export default async function LoginPage({
           <div>
             <label
               htmlFor="email"
-              className="mb-1.5 block text-sm font-medium"
+              className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-muted-foreground"
             >
               Email
             </label>
@@ -67,14 +80,14 @@ export default async function LoginPage({
               type="email"
               autoComplete="email"
               required
-              className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2.5 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              className="h-11 w-full rounded-xl border border-input bg-background px-3 py-2 outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             />
           </div>
 
           <div>
             <label
               htmlFor="password"
-              className="mb-1.5 block text-sm font-medium"
+              className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-muted-foreground"
             >
               Password
             </label>
@@ -84,13 +97,13 @@ export default async function LoginPage({
               type="password"
               autoComplete="current-password"
               required
-              className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2.5 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              className="h-11 w-full rounded-xl border border-input bg-background px-3 py-2 outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             />
           </div>
 
           <button
             type="submit"
-            className="w-full rounded-lg bg-brand-600 px-4 py-3 font-semibold text-white transition-colors hover:bg-brand-700"
+            className="gradient-primary h-11 w-full rounded-xl font-semibold text-primary-foreground shadow-lg shadow-primary/25 transition-all duration-300 hover:opacity-90 active:scale-[0.98]"
           >
             Sign in
           </button>

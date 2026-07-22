@@ -1,3 +1,4 @@
+import { LogOut } from "lucide-react";
 import { signOut } from "@/auth";
 
 export function SignOutButton() {
@@ -7,12 +8,14 @@ export function SignOutButton() {
         "use server";
         await signOut({ redirectTo: "/login" });
       }}
+      className="w-full"
     >
       <button
         type="submit"
-        className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm font-medium text-[var(--muted)] transition-colors hover:bg-[var(--bg)] hover:text-[var(--text)]"
+        className="flex w-full items-center justify-center gap-2 rounded-2xl border border-border bg-card px-3 py-2.5 text-sm font-semibold text-muted-foreground transition-all duration-300 hover:border-destructive/30 hover:bg-destructive/5 hover:text-destructive active:scale-95"
       >
-        Sign out
+        <LogOut className="h-4 w-4" />
+        <span className="hidden sm:inline">Sign out</span>
       </button>
     </form>
   );
