@@ -12,23 +12,35 @@ Mobile-first: the ASM places orders from a phone in the field.
 
 ## Setup
 
-### 1. Database (one-time)
+### 1. Database
 
-PostgreSQL 16 runs natively inside WSL2 — not Docker, which would cost 2–3GB of RAM on this machine.
+**Already installed and seeded.** PostgreSQL 16 runs natively inside WSL2 on **port 5433**.
+
+Port 5432 is taken by a separate Windows PostgreSQL 17 service belonging to another project, so this one uses 5433 to stay out of its way.
+
+After a Windows reboot, start it with:
 
 ```bash
-wsl
-sudo apt update && sudo apt install -y postgresql-16
-sudo service postgresql start
-sudo -u postgres psql -c "CREATE USER twom WITH PASSWORD 'twom' CREATEDB;"
-sudo -u postgres psql -c "CREATE DATABASE twom_dev OWNER twom;"
+wsl -u root service postgresql start
 ```
 
-Postgres in WSL2 is reachable from Windows at `localhost:5432`.
+<details>
+<summary>How it was set up (for reference / rebuilding)</summary>
 
-To start it after a reboot: `wsl sudo service postgresql start`
+```bash
+wsl -u root apt-get install -y postgresql postgresql-contrib
+# port changed to 5433 in /etc/postgresql/16/main/postgresql.conf
+wsl -u root service postgresql start
+wsl -u root su - postgres -c "psql -c \"CREATE USER twom WITH PASSWORD 'twom' CREATEDB;\""
+wsl -u root su - postgres -c "psql -c 'CREATE DATABASE twom_dev OWNER twom;'"
+```
+
+WSL's root user needs no password, which avoids the interactive `sudo` prompt.
+</details>
 
 ### 2. Environment
+
+`.env` already exists with a generated `AUTH_SECRET`. For a fresh clone:
 
 ```bash
 cp .env.example .env
@@ -36,6 +48,8 @@ npx auth secret        # writes AUTH_SECRET
 ```
 
 ### 3. Schema and seed
+
+Already applied — 32 tables created and seeded. To rebuild:
 
 ```bash
 npm install
