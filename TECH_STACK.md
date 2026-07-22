@@ -348,6 +348,8 @@ Per business direction, these are no longer engineering decisions — they are A
 | Staging | UAT with business users | VPS (staging instance or separate subdomain) |
 | Production | Live | **VPS** — app, Postgres, and uploads co-located |
 
+**Dev port: 3100.** Port 3000 is occupied by another local project (Amato Automotive MIS), so `npm run dev` binds 3100 to avoid the clash.
+
 **Local DB decision: Postgres 16 native inside WSL2**, not Docker. The dev machine has 7.7GB RAM; Docker Desktop reserves 2–3GB for its WSL2 VM, which is significant when the dev server and a browser also need headroom. Native Postgres in the existing Ubuntu distro costs ~200MB, runs the same engine as the VPS will, and is reachable from Windows at `localhost:5432`.
 
 ### VPS production layout
