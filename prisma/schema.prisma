@@ -88,10 +88,11 @@ model Dealer {
   priceTierId    String?
   priceTier      DealerPriceTier? @relation(fields: [priceTierId], references: [id])
 
-  subDealers     SubDealer[]
-  printingFrames PrintingFrame[]
-  orders         Order[]
-  users          User[]
+  subDealers          SubDealer[]
+  printingFrames      PrintingFrame[]
+  orders              Order[]
+  users               User[]
+  dealerNotifications DealerNotification[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -413,14 +414,15 @@ model Order {
   createdById String
   createdBy   User   @relation("OrderCreatedBy", fields: [createdById], references: [id])
 
-  lines       OrderLine[]
-  versions    OrderVersion[]
-  approvals   Approval[]
-  payments    Payment[]
-  production  ProductionRecord?
-  invoices    Invoice[]
-  dispatch    Dispatch?
-  documentLog DocumentIssueLog[]
+  lines               OrderLine[]
+  versions            OrderVersion[]
+  approvals           Approval[]
+  payments            Payment[]
+  production          ProductionRecord?
+  invoices            Invoice[]
+  dispatch            Dispatch?
+  documentLog         DocumentIssueLog[]
+  dealerNotifications DealerNotification[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -542,6 +544,7 @@ model Payment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([orderId, mode])
   @@index([orderId])
 }
 
@@ -761,6 +764,7 @@ model AuditLog {
 enum NotificationChannel {
   IN_APP
   EMAIL
+  WHATSAPP
 }
 
 model Notification {
@@ -779,4 +783,44 @@ model Notification {
 
   @@index([userId, isRead])
   @@index([createdAt])
+}
+
+enum ExternalNotifyStatus {
+  LOGGED // recorded in-app only — real sending not wired up yet
+  SENT
+  FAILED
+}
+
+/**
+ * Dealer-facing notifications. Dealers have no login (TECH_STACK.md §2), so
+ * this is separate from Notification, which is scoped to internal Users.
+ *
+ * Right now every row is created as LOGGED — this is the frame for the
+ * WhatsApp/email integration, not the integration itself. Wiring a real
+ * provider later means writing to `status`/`sentAt` from a job; nothing about
+ * this shape changes.
+ */
+model DealerNotification {
+  id       String              @id @default(cuid())
+  orderId  String
+  order    Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  dealerId String
+  dealer   Dealer              @relation(fields: [dealerId], references: [id])
+
+  channel ExternalNotifyChannel
+  event   String
+  message String
+
+  status ExternalNotifyStatus @default(LOGGED)
+  sentAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
+  @@index([dealerId, createdAt])
+}
+
+enum ExternalNotifyChannel {
+  EMAIL
+  WHATSAPP
 }

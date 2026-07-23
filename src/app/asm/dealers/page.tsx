@@ -30,31 +30,65 @@ export default async function DealersPage() {
           description="Admin adds dealers to the master before orders can be placed."
         />
       ) : (
-        <div className="space-y-2.5">
+        <div className="grid gap-2.5 lg:grid-cols-2">
           {dealers.map((d) => (
-            <Card key={d.id}>
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate font-semibold">{d.name}</p>
+            <Card key={d.id} className="card-hover">
+              <div className="flex items-start gap-3">
+                <span
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/8 font-display text-sm font-bold text-primary"
+                  aria-hidden
+                >
+                  {d.name.slice(0, 2).toUpperCase()}
+                </span>
+
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-semibold leading-snug">
+                    {d.name}
+                  </p>
                   <p className="font-mono text-[10px] text-muted-foreground">
                     {d.code}
                   </p>
                   <p className="mt-1.5 flex items-start gap-1.5 text-xs text-muted-foreground">
                     <MapPin className="mt-0.5 h-3 w-3 shrink-0" />
-                    <span>
+                    <span className="truncate">
                       {d.city}, {d.state} — {d.pincode}
                     </span>
                   </p>
                 </div>
-                <div className="shrink-0 text-right text-xs text-muted-foreground">
-                  <p>{d._count.orders} orders</p>
-                  <p>{d._count.subDealers} sub-dealers</p>
-                  {d.creditLimit ? (
-                    <p className="mt-1 font-semibold text-foreground">
+
+                {d.creditLimit ? (
+                  <div className="shrink-0 text-right">
+                    <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
+                      Credit
+                    </p>
+                    <p className="font-display text-sm font-semibold tabular-nums">
                       {formatINR(d.creditLimit.toString())}
                     </p>
-                  ) : null}
-                </div>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="mt-3 flex gap-4 border-t border-border pt-2.5 text-[11px] text-muted-foreground">
+                <span className="tabular-nums">
+                  <strong className="font-semibold text-foreground">
+                    {d._count.orders}
+                  </strong>{" "}
+                  orders
+                </span>
+                <span className="tabular-nums">
+                  <strong className="font-semibold text-foreground">
+                    {d._count.subDealers}
+                  </strong>{" "}
+                  sub-dealers
+                </span>
+                {d.creditDays ? (
+                  <span className="tabular-nums">
+                    <strong className="font-semibold text-foreground">
+                      {d.creditDays}
+                    </strong>{" "}
+                    days
+                  </span>
+                ) : null}
               </div>
             </Card>
           ))}

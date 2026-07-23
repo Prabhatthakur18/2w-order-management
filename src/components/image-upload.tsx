@@ -164,8 +164,8 @@ export function ImageUpload({
   );
 }
 
-/** Downscales to fit MAX_EDGE and re-encodes as JPEG. */
-async function compressImage(file: File, maxEdge = 1600): Promise<File> {
+/** Downscales to fit MAX_EDGE and re-encodes as JPEG. Shared with ReceiptUpload. */
+export async function compressImage(file: File, maxEdge = 1600): Promise<File> {
   // Nothing to gain on already-small files.
   if (file.size < 300 * 1024) return file;
 

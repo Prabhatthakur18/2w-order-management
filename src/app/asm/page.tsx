@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { ClipboardList } from "lucide-react";
 import { requireRole } from "@/lib/guard";
 import { db } from "@/lib/db";
@@ -9,18 +8,20 @@ import {
   StatGrid,
   StatTile,
 } from "@/components/dashboard";
-import { Badge, Card, EmptyState, ButtonLink } from "@/components/ui";
-import { formatINR, formatDate } from "@/lib/utils";
-import { STATUS_LABEL, STATUS_TONE } from "@/lib/order-status";
+import { EmptyState, ButtonLink } from "@/components/ui";
+import { OrderRow } from "@/components/order-row";
+import { sweepExpiredOrders } from "@/lib/order-lifecycle";
 
 export default async function AsmDashboard() {
   const session = await requireRole(["ASM", "ADMIN"]);
   const isAdmin = session.user.roles.includes("ADMIN");
   const scope = isAdmin ? {} : { createdById: session.user.id };
 
-  const [draft, pending, inProduction, dispatched, recent] = await Promise.all([
-    db.order.count({ where: { ...scope, status: "DRAFT" } }),
-    db.order.count({ where: { ...scope, status: "PENDING_APPROVAL" } }),
+  await sweepExpiredOrders();
+
+  const [created, placed, inProduction, dispatched, recent] = await Promise.all([
+    db.order.count({ where: { ...scope, status: "CREATED" } }),
+    db.order.count({ where: { ...scope, status: "PLACED" } }),
     db.order.count({ where: { ...scope, status: "IN_PRODUCTION" } }),
     db.order.count({ where: { ...scope, status: "DISPATCHED" } }),
     db.order.findMany({
@@ -40,14 +41,15 @@ export default async function AsmDashboard() {
       />
 
       <StatGrid>
-        <StatTile label="Draft" value={draft} hint="Not yet submitted" />
         <StatTile
-          label="Awaiting approval"
-          value={pending}
+          label="Editable"
+          value={created}
           tone="warn"
-          hint="With dealer"
+          hint="Still inside the edit window"
+          attention
         />
-        <StatTile label="In production" value={inProduction} />
+        <StatTile label="Placed" value={placed} hint="Committed" />
+        <StatTile label="In production" value={inProduction} tone="default" />
         <StatTile label="Dispatched" value={dispatched} tone="good" />
       </StatGrid>
 
@@ -64,29 +66,18 @@ export default async function AsmDashboard() {
         ) : (
           <div className="space-y-2.5">
             {recent.map((o) => (
-              <Link key={o.id} href={`/asm/orders/${o.id}`} className="block">
-                <Card className="card-hover">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate font-mono text-xs text-muted-foreground">
-                        {o.orderNo}
-                      </p>
-                      <p className="truncate font-semibold">{o.dealer.name}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {formatDate(o.createdAt)}
-                      </p>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <Badge tone={STATUS_TONE[o.status]}>
-                        {STATUS_LABEL[o.status]}
-                      </Badge>
-                      <p className="mt-1.5 font-bold tabular-nums">
-                        {formatINR(o.totalValue.toString())}
-                      </p>
-                    </div>
-                  </div>
-                </Card>
-              </Link>
+              <OrderRow
+                key={o.id}
+                href={`/asm/orders/${o.id}`}
+                orderNo={o.orderNo}
+                dealerName={o.dealer.name}
+                status={o.status}
+                createdAt={o.createdAt}
+                totalQty={o.totalQty}
+                totalValue={o.totalValue.toString()}
+                piNumber={o.piNumber}
+                editableUntil={o.editableUntil}
+              />
             ))}
           </div>
         )}

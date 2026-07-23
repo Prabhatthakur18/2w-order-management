@@ -3,15 +3,8 @@
 import { useEffect, useState, useTransition } from "react";
 import { Loader2, Package, Plus, Trash2, TriangleAlert } from "lucide-react";
 import type { OrderDraft, OrderLineDraft } from "@/lib/order-draft";
-import {
-  Button,
-  Card,
-  EmptyState,
-  Field,
-  Input,
-  Select,
-  Textarea,
-} from "@/components/ui";
+import { Button, Card, EmptyState, Field, Input, Textarea } from "@/components/ui";
+import { Combobox } from "@/components/combobox";
 import { formatINR } from "@/lib/utils";
 import { loadVehicles, loadParts, loadColours, loadPrice } from "./actions";
 import type { OemOption } from "./types";
@@ -188,72 +181,50 @@ export function StepItems({
 
         <div className="space-y-3">
           <Field label="OEM" htmlFor="oem" required>
-            <Select
-              id="oem"
+            <Combobox
+              options={oems.map((o) => ({ value: o.id, label: o.name }))}
               value={oemId}
-              onChange={(e) => setOemId(e.target.value)}
-            >
-              <option value="">Select OEM</option>
-              {oems.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.name}
-                </option>
-              ))}
-            </Select>
+              onChange={setOemId}
+              placeholder="Select OEM"
+              searchPlaceholder="Search OEMs…"
+            />
           </Field>
 
           <Field label="Vehicle" htmlFor="vehicle" required>
-            <Select
-              id="vehicle"
+            <Combobox
+              options={vehicles.map((v) => ({ value: v.id, label: v.name }))}
               value={vehicleId}
-              onChange={(e) => setVehicleId(e.target.value)}
+              onChange={setVehicleId}
+              placeholder={oemId ? "Select vehicle" : "Select an OEM first"}
+              searchPlaceholder="Search vehicles…"
               disabled={!oemId || pending}
-            >
-              <option value="">
-                {oemId ? "Select vehicle" : "Select an OEM first"}
-              </option>
-              {vehicles.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.name}
-                </option>
-              ))}
-            </Select>
+            />
           </Field>
 
           <Field label="Part number" htmlFor="part" required>
-            <Select
-              id="part"
+            <Combobox
+              options={parts.map((p) => ({
+                value: p.id,
+                label: p.name,
+                meta: p.partNo,
+              }))}
               value={partId}
-              onChange={(e) => setPartId(e.target.value)}
+              onChange={setPartId}
+              placeholder={vehicleId ? "Select part" : "Select a vehicle first"}
+              searchPlaceholder="Search parts or part no…"
               disabled={!vehicleId || pending}
-            >
-              <option value="">
-                {vehicleId ? "Select part" : "Select a vehicle first"}
-              </option>
-              {parts.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.partNo} — {p.name}
-                </option>
-              ))}
-            </Select>
+            />
           </Field>
 
           <Field label="Colour" htmlFor="colour" required>
-            <Select
-              id="colour"
+            <Combobox
+              options={colours.map((c) => ({ value: c.id, label: c.colour }))}
               value={colourId}
-              onChange={(e) => setColourId(e.target.value)}
+              onChange={setColourId}
+              placeholder={partId ? "Select colour" : "Select a part first"}
+              searchPlaceholder="Search colours…"
               disabled={!partId || pending}
-            >
-              <option value="">
-                {partId ? "Select colour" : "Select a part first"}
-              </option>
-              {colours.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.colour}
-                </option>
-              ))}
-            </Select>
+            />
           </Field>
 
           <div className="grid grid-cols-2 gap-3">

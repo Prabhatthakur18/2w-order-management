@@ -33,22 +33,28 @@ export default async function LoginPage({
   }
 
   return (
-    <main className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-app-wrapper px-4 py-10">
+    <main className="bg-grid relative flex min-h-dvh items-center justify-center overflow-hidden bg-app-wrapper px-4 py-10">
       <div
-        className="glow-blob -top-20 -left-20 h-80 w-80 bg-primary/30"
+        className="glow-blob -top-20 -left-20 h-80 w-80 bg-primary/25"
         aria-hidden
       />
       <div
-        className="glow-blob -bottom-24 -right-16 h-80 w-80 bg-brand-orange/25"
+        className="glow-blob -bottom-24 -right-16 h-80 w-80 bg-brand-orange/20"
         aria-hidden
       />
 
-      <div className="relative z-10 w-full max-w-sm">
-        <div className="mb-7 text-center">
-          <h1 className="text-gradient-premium text-3xl font-bold tracking-tight">
-            2W Orders
+      <div className="animate-rise relative z-10 w-full max-w-sm">
+        <div className="mb-8 flex flex-col items-center text-center">
+          <span
+            className="gradient-primary mb-4 flex h-14 w-14 items-center justify-center rounded-2xl font-display text-lg font-bold text-primary-foreground shadow-glow"
+            aria-hidden
+          >
+            2W
+          </span>
+          <h1 className="font-display text-[2rem] font-semibold leading-none tracking-tight">
+            Orders
           </h1>
-          <p className="mt-1.5 text-sm text-muted-foreground">
+          <p className="mt-2 text-sm text-muted-foreground">
             Dealer order management
           </p>
         </div>
@@ -70,7 +76,7 @@ export default async function LoginPage({
           <div>
             <label
               htmlFor="email"
-              className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-muted-foreground"
+              className="mb-1.5 block text-xs font-bold uppercase tracking-[0.09em] text-muted-foreground"
             >
               Email
             </label>
@@ -80,14 +86,14 @@ export default async function LoginPage({
               type="email"
               autoComplete="email"
               required
-              className="h-11 w-full rounded-xl border border-input bg-background px-3 py-2 outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="h-11 w-full rounded-xl border border-input bg-background px-3.5 shadow-xs outline-none transition-all duration-200 hover:border-primary/30 focus-visible:border-primary focus-visible:ring-4 focus-visible:ring-primary/10"
             />
           </div>
 
           <div>
             <label
               htmlFor="password"
-              className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-muted-foreground"
+              className="mb-1.5 block text-xs font-bold uppercase tracking-[0.09em] text-muted-foreground"
             >
               Password
             </label>
@@ -97,13 +103,13 @@ export default async function LoginPage({
               type="password"
               autoComplete="current-password"
               required
-              className="h-11 w-full rounded-xl border border-input bg-background px-3 py-2 outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="h-11 w-full rounded-xl border border-input bg-background px-3.5 shadow-xs outline-none transition-all duration-200 hover:border-primary/30 focus-visible:border-primary focus-visible:ring-4 focus-visible:ring-primary/10"
             />
           </div>
 
           <button
             type="submit"
-            className="gradient-primary h-11 w-full rounded-xl font-semibold text-primary-foreground shadow-lg shadow-primary/25 transition-all duration-300 hover:opacity-90 active:scale-[0.98]"
+            className="gradient-primary h-11 w-full rounded-xl font-semibold text-primary-foreground shadow-glow transition-all duration-200 hover:brightness-110 active:scale-[0.98]"
           >
             Sign in
           </button>

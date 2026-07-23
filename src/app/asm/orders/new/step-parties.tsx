@@ -9,7 +9,8 @@ import {
   Upload,
 } from "lucide-react";
 import type { OrderDraft } from "@/lib/order-draft";
-import { Button, Card, Field, Input, Select, Textarea } from "@/components/ui";
+import { Button, Card, Field, Input, Textarea } from "@/components/ui";
+import { Combobox } from "@/components/combobox";
 import { ImageUpload } from "@/components/image-upload";
 import { loadDealerDetail } from "./actions";
 import { uploadPrintingFrame } from "./upload-frame";
@@ -92,24 +93,23 @@ export function StepParties({
     <div className="space-y-4">
       <Card>
         <Field label="Dealer" htmlFor="dealer" required>
-          <Select
-            id="dealer"
+          <Combobox
+            options={dealers.map((d) => ({
+              value: d.id,
+              label: d.name,
+              meta: d.code,
+            }))}
             value={draft.dealerId}
-            onChange={(e) =>
+            onChange={(v) =>
               onChange({
-                dealerId: e.target.value,
+                dealerId: v,
                 subDealerId: "",
                 printingFrameId: "",
               })
             }
-          >
-            <option value="">Select a dealer</option>
-            {dealers.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name} ({d.code})
-              </option>
-            ))}
-          </Select>
+            placeholder="Select a dealer"
+            searchPlaceholder="Search dealers…"
+          />
         </Field>
 
         {/* Auto-populated from the dealer master */}
@@ -143,28 +143,27 @@ export function StepParties({
             htmlFor="subdealer"
             hint="Select from the master, or add a new one below."
           >
-            <Select
-              id="subdealer"
+            <Combobox
+              options={(detail?.subDealers ?? []).map((s) => ({
+                value: s.id,
+                label: s.name,
+              }))}
               value={draft.subDealerId}
-              onChange={(e) =>
+              onChange={(v) =>
                 onChange({
-                  subDealerId: e.target.value,
-                  newSubDealer: e.target.value ? null : draft.newSubDealer,
+                  subDealerId: v,
+                  newSubDealer: v ? null : draft.newSubDealer,
                 })
               }
-              disabled={isPending}
-            >
-              <option value="">
-                {detail?.subDealers.length
+              placeholder={
+                detail?.subDealers.length
                   ? "Select a sub-dealer"
-                  : "No sub-dealers on record"}
-              </option>
-              {detail?.subDealers.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </Select>
+                  : "No sub-dealers on record"
+              }
+              searchPlaceholder="Search sub-dealers…"
+              disabled={isPending}
+              loading={isPending}
+            />
           </Field>
 
           {!draft.subDealerId ? (
@@ -236,22 +235,17 @@ export function StepParties({
             htmlFor="frame"
             hint="Stored against the dealer and reused across orders."
           >
-            <Select
-              id="frame"
+            <Combobox
+              options={frames.map((f) => ({
+                value: f.id,
+                label: f.isDefault ? `${f.label} (default)` : f.label,
+              }))}
               value={draft.printingFrameId}
-              onChange={(e) => onChange({ printingFrameId: e.target.value })}
+              onChange={(v) => onChange({ printingFrameId: v })}
+              placeholder={frames.length ? "Select artwork" : "No artwork on file"}
+              searchPlaceholder="Search artwork…"
               disabled={isPending}
-            >
-              <option value="">
-                {frames.length ? "Select artwork" : "No artwork on file"}
-              </option>
-              {frames.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.label}
-                  {f.isDefault ? " (default)" : ""}
-                </option>
-              ))}
-            </Select>
+            />
           </Field>
 
           {/* Preview of the selected artwork, served through the authenticated route */}

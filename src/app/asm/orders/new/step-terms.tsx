@@ -3,7 +3,8 @@
 import { TriangleAlert } from "lucide-react";
 import type { OrderDraft } from "@/lib/order-draft";
 import { combinedDiscountPct, type OrderTotals } from "@/lib/pricing";
-import { Card, Field, Input, Select, Textarea } from "@/components/ui";
+import { Card, Field, Input, Textarea } from "@/components/ui";
+import { Combobox } from "@/components/combobox";
 import { formatINR } from "@/lib/utils";
 import type { SchemeOption, WizardConfig } from "./types";
 
@@ -69,20 +70,21 @@ export function StepTerms({
               : "Cannot be combined with a dealer discount."
           }
         >
-          <Select
-            id="scheme"
+          <Combobox
+            options={schemes.map((s) => ({
+              value: s.id,
+              label: s.name,
+              meta: s.discountPct
+                ? `${s.discountPct}%`
+                : s.flatAmount
+                  ? formatINR(s.flatAmount)
+                  : undefined,
+            }))}
             value={draft.schemeId}
-            onChange={(e) => onChange({ schemeId: e.target.value })}
-          >
-            <option value="">No scheme</option>
-            {schemes.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-                {s.discountPct ? ` (${s.discountPct}%)` : ""}
-                {s.flatAmount ? ` (${formatINR(s.flatAmount)})` : ""}
-              </option>
-            ))}
-          </Select>
+            onChange={(v) => onChange({ schemeId: v })}
+            placeholder="No scheme"
+            searchPlaceholder="Search schemes…"
+          />
         </Field>
       </Card>
 

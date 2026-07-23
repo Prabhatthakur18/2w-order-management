@@ -43,6 +43,22 @@
   --brand-orange: 32 100% 50%;
   --brand-yellow: 48 100% 50%;
   --app-wrapper: 30 100% 95%;
+
+  /* Status axis — deliberately separate from the primary accent, so
+     "needs attention" never competes visually with "this is a button". */
+  --status-draft: 215 16% 55%;
+  --status-created: 38 92% 50%;
+  --status-placed: 217 91% 60%;
+  --status-progress: 262 72% 58%;
+  --status-done: 152 62% 42%;
+  --status-stopped: 0 72% 55%;
+
+  /* Elevation — layered, subject-tinted rather than flat black shadow */
+  --shadow-xs: 0 1px 2px hsl(217 40% 20% / 0.05);
+  --shadow-sm: 0 1px 3px hsl(217 40% 20% / 0.06), 0 1px 2px hsl(217 40% 20% / 0.04);
+  --shadow-md: 0 4px 12px hsl(217 40% 20% / 0.07), 0 2px 4px hsl(217 40% 20% / 0.04);
+  --shadow-lg: 0 12px 32px hsl(217 40% 20% / 0.10), 0 4px 8px hsl(217 40% 20% / 0.04);
+  --shadow-glow: 0 0 0 1px hsl(var(--primary) / 0.12), 0 8px 24px hsl(var(--primary) / 0.16);
 }
 
 .dark {
@@ -66,6 +82,20 @@
   --input: 217 33% 18%;
   --ring: 217 91% 60%;
   --app-wrapper: 222 47% 9%;
+
+  /* Status hues lift slightly on a dark ground to hold contrast. */
+  --status-draft: 215 16% 62%;
+  --status-created: 38 92% 60%;
+  --status-placed: 217 91% 66%;
+  --status-progress: 262 72% 68%;
+  --status-done: 152 55% 52%;
+  --status-stopped: 0 72% 62%;
+
+  --shadow-xs: 0 1px 2px hsl(0 0% 0% / 0.3);
+  --shadow-sm: 0 1px 3px hsl(0 0% 0% / 0.35), 0 1px 2px hsl(0 0% 0% / 0.2);
+  --shadow-md: 0 4px 12px hsl(0 0% 0% / 0.4), 0 2px 4px hsl(0 0% 0% / 0.25);
+  --shadow-lg: 0 12px 32px hsl(0 0% 0% / 0.45), 0 4px 8px hsl(0 0% 0% / 0.3);
+  --shadow-glow: 0 0 0 1px hsl(var(--primary) / 0.25), 0 8px 24px hsl(var(--primary) / 0.28);
 }
 
 @theme inline {
@@ -97,10 +127,24 @@
   --color-brand-yellow: hsl(var(--brand-yellow));
   --color-app-wrapper: hsl(var(--app-wrapper));
 
+  --color-status-draft: hsl(var(--status-draft));
+  --color-status-created: hsl(var(--status-created));
+  --color-status-placed: hsl(var(--status-placed));
+  --color-status-progress: hsl(var(--status-progress));
+  --color-status-done: hsl(var(--status-done));
+  --color-status-stopped: hsl(var(--status-stopped));
+
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
+  --font-display: "Bricolage Grotesque Variable", ui-sans-serif, system-ui, sans-serif;
+
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
 }
 
 /* Outside @layer base so it is never tree-shaken. The page must never scroll
@@ -121,6 +165,7 @@ body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
     -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
     font-family:
       "Roc Grotesk",
       ui-sans-serif,
@@ -131,6 +176,30 @@ body {
       sans-serif;
     /* iOS home-indicator clearance for the bottom nav */
     padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Headings and figures carry the display face; it has real character in
+     its numerals, which is most of what this UI shows. */
+  h1,
+  h2,
+  h3,
+  .font-display {
+    font-family: var(--font-display);
+    font-optical-sizing: auto;
+    letter-spacing: -0.015em;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  /* Any column of digits should align. */
+  .tabular-nums,
+  table,
+  time {
+    font-variant-numeric: tabular-nums;
   }
 
   /* Touch targets never below 44px — mobile-first rule */
@@ -244,8 +313,42 @@ body {
     z-index: 0;
   }
 
+  .shadow-xs { box-shadow: var(--shadow-xs); }
+  .shadow-sm { box-shadow: var(--shadow-sm); }
+  .shadow-md { box-shadow: var(--shadow-md); }
+  .shadow-lg { box-shadow: var(--shadow-lg); }
+  .shadow-glow { box-shadow: var(--shadow-glow); }
+
+  /* Severity rail: a coloured edge that makes a list scannable as a pattern
+     rather than something you read row by row. */
+  .rail {
+    position: relative;
+    overflow: hidden;
+  }
+  .rail::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 3px;
+    background: var(--rail-color, transparent);
+  }
+
+  /* Faint grid on the app ground — gives the floating cards something to
+     sit on without adding visual noise. */
+  .bg-grid {
+    background-image:
+      linear-gradient(hsl(var(--foreground) / 0.025) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--foreground) / 0.025) 1px, transparent 1px);
+    background-size: 32px 32px;
+    background-position: -1px -1px;
+  }
+
   .animate-in-slide-right {
     animation: slide-in-right 0.3s ease-out;
+  }
+
+  .animate-rise {
+    animation: rise 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
 
   .animate-float {
@@ -285,6 +388,17 @@ body {
   }
   50% {
     opacity: 0.6;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 

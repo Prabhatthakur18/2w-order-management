@@ -3,15 +3,18 @@ import { cn } from "@/lib/utils";
 
 export function Card({
   className,
+  style,
   children,
 }: {
   className?: string;
+  style?: React.CSSProperties;
   children: React.ReactNode;
 }) {
   return (
     <div
+      style={style}
       className={cn(
-        "rounded-2xl border border-border bg-card p-4 shadow-sm",
+        "rounded-2xl border border-border bg-card p-4 shadow-xs",
         className,
       )}
     >
@@ -21,16 +24,16 @@ export function Card({
 }
 
 const buttonBase =
-  "inline-flex items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-all duration-300 active:scale-95 disabled:pointer-events-none disabled:opacity-50";
+  "inline-flex items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-all duration-200 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
 const buttonVariants = {
   primary:
-    "gradient-primary text-primary-foreground shadow-lg shadow-primary/25 hover:opacity-90",
+    "gradient-primary text-primary-foreground shadow-glow hover:brightness-110",
   secondary:
-    "border border-border bg-card text-foreground hover:bg-muted",
+    "border border-border bg-card text-foreground shadow-xs hover:border-primary/25 hover:bg-muted",
   ghost: "text-muted-foreground hover:bg-muted hover:text-foreground",
   danger:
-    "border border-destructive/30 bg-destructive/5 text-destructive hover:bg-destructive/10",
+    "border border-destructive/25 bg-destructive/5 text-destructive hover:bg-destructive/10",
 };
 
 const buttonSizes = {
@@ -112,7 +115,7 @@ export function Label({
 }
 
 const fieldClass =
-  "h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-60";
+  "h-11 w-full rounded-xl border border-input bg-background px-3.5 text-sm shadow-xs outline-none transition-all duration-200 hover:border-primary/30 focus-visible:border-primary focus-visible:ring-4 focus-visible:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-55";
 
 export function Input({
   className,
@@ -184,19 +187,25 @@ export function EmptyState({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-dashed border-border bg-muted/30 px-4 py-10 text-center">
+    <div className="rounded-2xl border border-dashed border-border bg-muted/20 px-4 py-14 text-center">
       {icon ? (
-        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-card text-muted-foreground shadow-sm">
-          {icon}
+        <div className="relative mx-auto mb-4 flex h-14 w-14 items-center justify-center">
+          <span
+            className="absolute inset-0 rounded-2xl bg-primary/5"
+            aria-hidden
+          />
+          <span className="relative flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground shadow-xs">
+            {icon}
+          </span>
         </div>
       ) : null}
-      <p className="font-semibold">{title}</p>
+      <p className="font-display text-base font-semibold">{title}</p>
       {description ? (
-        <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
+        <p className="mx-auto mt-1.5 max-w-xs text-sm leading-relaxed text-muted-foreground">
           {description}
         </p>
       ) : null}
-      {action ? <div className="mt-4">{action}</div> : null}
+      {action ? <div className="mt-5">{action}</div> : null}
     </div>
   );
 }

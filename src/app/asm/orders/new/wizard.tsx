@@ -81,38 +81,66 @@ export function OrderWizard({
 
   return (
     <div className="pb-4">
-      {/* Step indicator */}
-      <ol className="mb-5 flex items-center gap-1.5">
-        {STEPS.map((s) => {
+      {/* Step rail — the connector encodes progress as a continuous path,
+          which reads faster than four separate pills. */}
+      <ol className="mb-6 flex items-center">
+        {STEPS.map((s, i) => {
           const done = status[s.slug];
           const active = s.id === step;
+          const reached = done || active;
           return (
-            <li key={s.id} className="flex flex-1 items-center gap-1.5">
+            <li key={s.id} className="flex flex-1 items-center last:flex-none">
               <button
                 type="button"
                 onClick={() => setStep(s.id)}
-                className={cn(
-                  "flex h-8 min-h-0 w-full items-center justify-center gap-1.5 rounded-xl px-2 text-[10px] font-bold uppercase tracking-wider transition-all",
-                  active
-                    ? "bg-primary text-primary-foreground shadow-sm shadow-primary/25"
-                    : done
-                      ? "bg-success/10 text-success"
-                      : "bg-muted text-muted-foreground",
-                )}
+                aria-current={active ? "step" : undefined}
+                className="group flex min-h-0 shrink-0 flex-col items-center gap-1.5"
               >
-                {done && !active ? (
-                  <Check className="h-3 w-3" />
-                ) : (
-                  <span>{s.id}</span>
-                )}
-                <span className="hidden sm:inline">{s.label}</span>
+                <span
+                  className={cn(
+                    "flex h-8 w-8 items-center justify-center rounded-full text-[11px] font-bold transition-all duration-300",
+                    active
+                      ? "bg-primary text-primary-foreground shadow-glow ring-4 ring-primary/15"
+                      : done
+                        ? "bg-status-done/15 text-status-done"
+                        : "border border-border bg-card text-muted-foreground group-hover:border-primary/30",
+                  )}
+                >
+                  {done && !active ? <Check className="h-3.5 w-3.5" /> : s.id}
+                </span>
+                <span
+                  className={cn(
+                    "hidden text-[9px] font-bold uppercase tracking-[0.08em] transition-colors sm:block",
+                    active
+                      ? "text-primary"
+                      : done
+                        ? "text-status-done"
+                        : "text-muted-foreground",
+                  )}
+                >
+                  {s.label}
+                </span>
               </button>
+
+              {i < STEPS.length - 1 ? (
+                <span
+                  aria-hidden
+                  className={cn(
+                    "mx-1.5 -mt-4 h-0.5 flex-1 rounded-full transition-colors duration-500",
+                    reached && status[STEPS[i].slug]
+                      ? "bg-status-done/40"
+                      : "bg-border",
+                  )}
+                />
+              ) : null}
             </li>
           );
         })}
       </ol>
 
-      <h3 className="mb-4 text-lg font-bold">{current.title}</h3>
+      <h3 className="font-display mb-4 text-xl font-semibold">
+        {current.title}
+      </h3>
 
       {step === 1 ? (
         <StepParties
@@ -152,13 +180,13 @@ export function OrderWizard({
       ) : null}
 
       {/* Sticky footer: running total + navigation */}
-      <div className="sticky bottom-[76px] z-10 mt-6 md:bottom-4">
-        <div className="glass-card flex items-center justify-between gap-3 rounded-2xl px-4 py-3">
+      <div className="sticky bottom-[76px] z-10 mt-7 md:bottom-4">
+        <div className="glass-card flex items-center justify-between gap-3 rounded-2xl px-4 py-3 shadow-md">
           <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+            <p className="text-[10px] font-bold uppercase tracking-[0.09em] text-muted-foreground">
               {totals.totalQty} {totals.totalQty === 1 ? "unit" : "units"}
             </p>
-            <p className="truncate text-base font-bold tabular-nums">
+            <p className="font-display truncate text-lg font-semibold leading-tight tabular-nums">
               {formatINR(totals.total.toString())}
             </p>
           </div>

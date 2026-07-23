@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { notifyDealerOrderPlaced } from "@/lib/dealer-notify";
 import {
   DEFAULT_EDIT_WINDOW_HOURS,
   editDeadline,
@@ -15,11 +16,12 @@ import {
  *   DRAFT ──create──> CREATED ──┬── ASM places early ──> PLACED
  *                               └── window expires ────> PLACED (auto)
  *
- * While CREATED the ASM may edit the order. Once PLACED it is committed and
- * a Proforma Invoice number is allocated.
+ * While CREATED the ASM may edit the order. Once PLACED it is committed, a
+ * Proforma Invoice number is allocated, and the dealer is notified.
  *
- * Note this is the ASM's own review window, not the dealer approval gate —
- * that remains a separate step and is not auto-approved.
+ * The dealer is informational-only here — they receive the order by email
+ * and WhatsApp for their records, but do not approve or act on it. There is
+ * no approval gate in this flow.
  */
 
 export const EDIT_WINDOW_HOURS_KEY = "order.edit_window_hours";
@@ -102,7 +104,12 @@ export async function placeOrder(
 
       const order = await tx.order.findUniqueOrThrow({
         where: { id: orderId },
-        select: { piNumber: true },
+        select: {
+          piNumber: true,
+          orderNo: true,
+          dealerId: true,
+          totalValue: true,
+        },
       });
 
       // Re-placing must never mint a second number.
@@ -114,6 +121,15 @@ export async function placeOrder(
           data: { piNumber, piIssuedAt: new Date() },
         });
       }
+
+      // Dealer is informational-only — no approval gate in this flow.
+      await notifyDealerOrderPlaced(tx, {
+        orderId,
+        dealerId: order.dealerId,
+        orderNo: order.orderNo,
+        piNumber,
+        totalValue: order.totalValue.toString(),
+      });
 
       await tx.auditLog.create({
         data: {

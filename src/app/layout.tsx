@@ -1,4 +1,6 @@
 import type { Metadata, Viewport } from "next";
+// Self-hosted: bundled with the app, no external font request.
+import "@fontsource-variable/bricolage-grotesque";
 import "./globals.css";
 
 export const metadata: Metadata = {

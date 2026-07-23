@@ -43,7 +43,9 @@ export function OrderActions({
       if (next === 0) router.refresh();
     };
     tick();
-    const timer = setInterval(tick, 30_000);
+    // Every 15s: the ring animates smoothly between ticks, and the minute
+    // readout stays accurate without a per-second timer.
+    const timer = setInterval(tick, 15_000);
     return () => clearInterval(timer);
   }, [editableUntilMs, router]);
 
@@ -60,15 +62,48 @@ export function OrderActions({
     });
   }
 
+  const totalMs = editWindowHours * 3600_000;
+  const elapsed = Math.min(1, Math.max(0, 1 - remaining / totalMs));
+  // Ring geometry: r=20 gives a 22px-radius dial at 48px square.
+  const circumference = 2 * Math.PI * 20;
+
   return (
     <Card>
-      <div className="mb-3 flex items-center gap-2">
-        <Clock className="h-4 w-4 text-warning" />
+      <div className="mb-4 flex items-center gap-3.5">
+        <div className="relative h-12 w-12 shrink-0">
+          <svg viewBox="0 0 48 48" className="h-12 w-12 -rotate-90" aria-hidden>
+            <circle
+              cx="24"
+              cy="24"
+              r="20"
+              fill="none"
+              stroke="hsl(var(--border))"
+              strokeWidth="3.5"
+            />
+            <circle
+              cx="24"
+              cy="24"
+              r="20"
+              fill="none"
+              stroke="hsl(var(--status-created))"
+              strokeWidth="3.5"
+              strokeLinecap="round"
+              strokeDasharray={circumference}
+              strokeDashoffset={circumference * elapsed}
+              className="transition-[stroke-dashoffset] duration-1000 ease-linear"
+            />
+          </svg>
+          <Clock
+            className="absolute inset-0 m-auto h-4 w-4 text-status-created"
+            aria-hidden
+          />
+        </div>
         <div className="min-w-0">
-          <p className="text-sm font-bold">{formatRemaining(remaining)}</p>
-          <p className="text-xs text-muted-foreground">
-            Edit freely for {editWindowHours}h. After that the order is placed
-            automatically.
+          <p className="font-display text-base font-semibold leading-tight">
+            {formatRemaining(remaining)}
+          </p>
+          <p className="mt-0.5 text-xs leading-snug text-muted-foreground">
+            Editable for {editWindowHours}h, then placed automatically.
           </p>
         </div>
       </div>
@@ -150,6 +185,21 @@ export function ProformaButton({ orderId }: { orderId: string }) {
     >
       <FileText className="h-4 w-4" />
       Download proforma invoice
+    </a>
+  );
+}
+
+/** Plain order record — available at any status, unlike the PI. */
+export function OrderPdfButton({ orderId }: { orderId: string }) {
+  return (
+    <a
+      href={`/asm/orders/${orderId}/pdf`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 text-sm font-semibold transition-all duration-300 hover:bg-muted active:scale-95"
+    >
+      <FileText className="h-4 w-4" />
+      Download order PDF
     </a>
   );
 }

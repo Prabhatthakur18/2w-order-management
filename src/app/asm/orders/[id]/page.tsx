@@ -1,17 +1,18 @@
 import { notFound } from "next/navigation";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, Mail, MessageCircle } from "lucide-react";
 import { requireRole } from "@/lib/guard";
 import { db } from "@/lib/db";
 import { PageHeader } from "@/components/dashboard";
-import { Badge, ButtonLink, Card } from "@/components/ui";
+import { ButtonLink, Card } from "@/components/ui";
 import { formatINR, formatDate } from "@/lib/utils";
-import { STATUS_LABEL, STATUS_TONE } from "@/lib/order-status";
+import { STATUS_LABEL, STATUS_RAIL } from "@/lib/order-status";
 import {
   getEditWindowHours,
   isEditable,
   sweepExpiredOrders,
 } from "@/lib/order-lifecycle";
-import { OrderActions, ProformaButton } from "./order-actions";
+import { OrderActions, OrderPdfButton, ProformaButton } from "./order-actions";
+import { PaymentReceiptCard } from "./payment-receipt-card";
 
 export default async function OrderDetailPage({
   params,
@@ -38,6 +39,11 @@ export default async function OrderDetailPage({
       scheme: true,
       lines: { orderBy: { createdAt: "asc" } },
       createdBy: { select: { name: true } },
+      dealerNotifications: { orderBy: { createdAt: "desc" } },
+      payments: {
+        where: { mode: "ADVANCE" },
+        include: { receipts: { orderBy: { uploadedAt: "desc" } } },
+      },
     },
   });
 
@@ -89,18 +95,79 @@ export default async function OrderDetailPage({
                 </p>
               ) : null}
             </div>
-            <ProformaButton orderId={order.id} />
+            <div className="grid grid-cols-2 gap-2">
+              <ProformaButton orderId={order.id} />
+              <OrderPdfButton orderId={order.id} />
+            </div>
+          </Card>
+        ) : (
+          <Card>
+            <OrderPdfButton orderId={order.id} />
+          </Card>
+        )}
+
+        {order.dealerNotifications.length > 0 ? (
+          <Card>
+            <h4 className="mb-2.5 text-sm font-bold">Dealer notified</h4>
+            <div className="space-y-1.5">
+              {order.dealerNotifications.map((n) => (
+                <div
+                  key={n.id}
+                  className="flex items-center gap-2 text-xs text-muted-foreground"
+                >
+                  {n.channel === "EMAIL" ? (
+                    <Mail className="h-3.5 w-3.5 shrink-0" />
+                  ) : (
+                    <MessageCircle className="h-3.5 w-3.5 shrink-0" />
+                  )}
+                  <span className="flex-1">
+                    {n.channel === "EMAIL" ? "Email" : "WhatsApp"} logged ·{" "}
+                    {formatDate(n.createdAt)}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <p className="mt-2.5 text-[11px] text-muted-foreground">
+              For the dealer&apos;s records — no action required from them.
+            </p>
           </Card>
         ) : null}
 
-        <Card>
+        {order.paymentMode === "ADVANCE" && order.piNumber ? (
+          <PaymentReceiptCard
+            orderId={order.id}
+            receipts={order.payments.flatMap((p) =>
+              p.receipts.map((r) => ({
+                id: r.id,
+                fileAssetId: r.fileAssetId,
+                uploadedAt: r.uploadedAt,
+              })),
+            )}
+          />
+        ) : null}
+
+        <Card
+          className="rail"
+          style={
+            { "--rail-color": STATUS_RAIL[order.status] } as React.CSSProperties
+          }
+        >
           <div className="flex items-center justify-between gap-3">
-            <Badge tone={STATUS_TONE[order.status]}>
+            <span
+              className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em]"
+              style={{
+                background: `${STATUS_RAIL[order.status]}1a`,
+                color: STATUS_RAIL[order.status],
+              }}
+            >
               {STATUS_LABEL[order.status]}
-            </Badge>
-            <span className="text-xs text-muted-foreground">
-              {formatDate(order.createdAt)}
             </span>
+            <time
+              dateTime={order.createdAt.toISOString()}
+              className="text-xs text-muted-foreground"
+            >
+              {formatDate(order.createdAt)}
+            </time>
           </div>
           <dl className="mt-3 space-y-2 text-sm">
             <Row label="Dealer" value={order.dealer.name} />
@@ -183,9 +250,11 @@ export default async function OrderDetailPage({
               value={formatINR(order.netValue.toString())}
             />
             <Row label="GST" value={formatINR(order.gstAmount.toString())} />
-            <div className="flex items-center justify-between gap-3 border-t border-border pt-2">
-              <dt className="font-bold">Total</dt>
-              <dd className="text-lg font-bold tabular-nums">
+            <div className="mt-1 flex items-baseline justify-between gap-3 border-t border-border pt-3">
+              <dt className="text-[10px] font-bold uppercase tracking-[0.09em] text-muted-foreground">
+                Total
+              </dt>
+              <dd className="font-display text-2xl font-semibold tabular-nums">
                 {formatINR(order.totalValue.toString())}
               </dd>
             </div>
