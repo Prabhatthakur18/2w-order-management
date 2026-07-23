@@ -133,7 +133,7 @@ export default async function OrderDetailPage({
           </Card>
         ) : null}
 
-        {order.paymentMode === "ADVANCE" && order.piNumber ? (
+        {order.paymentMode === "ADVANCE" ? (
           <PaymentReceiptCard
             orderId={order.id}
             receipts={order.payments.flatMap((p) =>
