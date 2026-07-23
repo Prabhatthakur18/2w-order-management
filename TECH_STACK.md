@@ -399,15 +399,17 @@ Per business direction, these are no longer engineering decisions — they are A
 
 | Env | Purpose | Hosting |
 |---|---|---|
-| Local | Development | Node 22 (Windows) + **PostgreSQL 16 native in WSL2 Ubuntu, port 5433** |
+| Local | Development | Node 22 (Windows) + **PostgreSQL 17 native Windows service, port 5432** |
 | Staging | UAT with business users | VPS (staging instance or separate subdomain) |
 | Production | Live | **VPS** — app, Postgres, and uploads co-located |
 
 **Dev port: 3100.** Port 3000 is occupied by another local project (Amato Automotive MIS), so `npm run dev` binds 3100 to avoid the clash.
 
-**Local DB decision: Postgres 16 native inside WSL2**, not Docker. The dev machine has 7.7GB RAM; Docker Desktop reserves 2–3GB for its WSL2 VM, which is significant when the dev server and a browser also need headroom. Native Postgres in the existing Ubuntu distro costs ~200MB and runs the same engine as the VPS will.
+**Local DB decision: the PostgreSQL 17 Windows service already on the machine**, in its own `twom_dev` database alongside the existing `autoform_mis`.
 
-**Port 5433**, because a Windows PostgreSQL 17 service (used by a separate project) already owns 5432 and binds `0.0.0.0`, which beats WSL's localhost forwarding. Running on 5433 keeps the two servers fully isolated. Migrating this project onto the Windows PG 17 instance later is possible — it needs the PG 17 superuser password to create the role and database.
+An earlier attempt ran Postgres 16 inside WSL2 on port 5433. It worked, then broke: the WSL Hyper-V firewall defaults to `DefaultInboundAction: Block`, so Windows→WSL connections are refused, and WSL's localhost forwarding proved unreliable across VM restarts. Rather than add firewall rules to work around a boundary we did not need, the database moved to the Windows service — no VM, no firewall, no port forwarding, and nothing to start after a reboot.
+
+Docker was ruled out earlier for memory: the machine has 7.7GB RAM and Docker Desktop reserves 2–3GB for its VM.
 
 ### VPS production layout
 

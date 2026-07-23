@@ -6,36 +6,36 @@ Architecture, decisions and the phase plan live in [TECH_STACK.md](TECH_STACK.md
 
 ## Stack
 
-Next.js 15 · TypeScript · Tailwind 4 · PostgreSQL 16 · Prisma 6 · Auth.js 5
+Next.js 15 · TypeScript · Tailwind 4 · PostgreSQL 17 · Prisma 6 · Auth.js 5
 
 Mobile-first: the ASM places orders from a phone in the field.
+
+## Running it
+
+```bash
+npm run dev
+```
+
+Open **http://localhost:3100**. That is the whole thing — one command.
+
+The database is the PostgreSQL 17 already running as a Windows service, so there is nothing to start and nothing to remember after a reboot.
 
 ## Setup
 
 ### 1. Database
 
-**Already installed and seeded.** PostgreSQL 16 runs natively inside WSL2 on **port 5433**.
-
-Port 5432 is taken by a separate Windows PostgreSQL 17 service belonging to another project, so this one uses 5433 to stay out of its way.
-
-After a Windows reboot, start it with:
-
-```bash
-wsl -u root service postgresql start
-```
+**Already created and seeded** — database `twom_dev` on `localhost:5432`, alongside the existing `autoform_mis` database, which is untouched.
 
 <details>
 <summary>How it was set up (for reference / rebuilding)</summary>
 
-```bash
-wsl -u root apt-get install -y postgresql postgresql-contrib
-# port changed to 5433 in /etc/postgresql/16/main/postgresql.conf
-wsl -u root service postgresql start
-wsl -u root su - postgres -c "psql -c \"CREATE USER twom WITH PASSWORD 'twom' CREATEDB;\""
-wsl -u root su - postgres -c "psql -c 'CREATE DATABASE twom_dev OWNER twom;'"
+```sql
+CREATE ROLE twom LOGIN PASSWORD 'twom' CREATEDB;
+CREATE DATABASE twom_dev OWNER twom;
 ```
 
-WSL's root user needs no password, which avoids the interactive `sudo` prompt.
+Run as the `postgres` superuser via
+`"C:\Program Files\PostgreSQL\17\bin\psql.exe" -U postgres -h 127.0.0.1`.
 </details>
 
 ### 2. Environment
@@ -49,18 +49,13 @@ npx auth secret        # writes AUTH_SECRET
 
 ### 3. Schema and seed
 
-Already applied — 32 tables created and seeded. To rebuild:
+Already applied. To rebuild:
 
 ```bash
 npm install
 npm run db:push        # create tables
-npm run db:seed        # demo users + default business rules
-```
-
-### 4. Run
-
-```bash
-npm run dev            # http://localhost:3100
+npm run db:seed        # users + business rules
+npm run db:seed:demo   # demo catalog (placeholder data)
 ```
 
 Port 3100, not 3000 — another local project already uses 3000.
