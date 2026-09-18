@@ -6,12 +6,16 @@ export type DealerOption = {
   city: string;
   state: string;
   pincode: string;
+  contactName: string | null;
   contactNo: string;
+  gstin: string | null;
   creditLimit: string | null;
   creditDays: number | null;
 };
 
 export type OemOption = { id: string; code: string; name: string };
+
+export type TransporterOption = { id: string; code: string; name: string };
 
 export type SchemeOption = {
   id: string;
@@ -22,9 +26,8 @@ export type SchemeOption = {
 };
 
 export type WizardConfig = {
-  maxCombinedPct: string;
-  approvalAbovePct: string;
-  allowStacking: boolean;
+  minDealerPct: string;
+  maxDealerPct: string;
 };
 
 export type DealerDetail = {
@@ -46,6 +49,10 @@ export type DealerDetail = {
     id: string;
     label: string;
     isDefault: boolean;
-    fileAssetId: string;
+    mode: "IMAGE" | "CONTENT";
+    fileAssetId: string | null;
+    contentText: string | null;
+    contentLanguage: string | null;
+    withOemLogo: boolean | null;
   }[];
 };

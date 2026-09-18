@@ -74,6 +74,7 @@ export async function uploadPrintingFrame(
         data: {
           dealerId,
           label,
+          mode: "IMAGE",
           fileAssetId: asset.id,
           isDefault: false,
         },

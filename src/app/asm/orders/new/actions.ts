@@ -35,17 +35,26 @@ export async function loadDealerDetail(dealerId: string) {
     pincode: dealer.pincode,
     contactNo: dealer.contactNo,
     priceTierId: dealer.priceTierId,
-    subDealers: dealer.subDealers.map((s) => ({
-      id: s.id,
-      name: s.name,
-      address: s.address,
-      contactNo: s.contactNo,
-    })),
+    // A sub-dealer added by an ASM is PENDING until Admin approves it, so it
+    // must never be selectable on a new order — this is the actual boundary
+    // (a server action), not just a client-side filter.
+    subDealers: dealer.subDealers
+      .filter((s) => s.approvalStatus === "APPROVED")
+      .map((s) => ({
+        id: s.id,
+        name: s.name,
+        address: s.address,
+        contactNo: s.contactNo,
+      })),
     printingFrames: dealer.printingFrames.map((f) => ({
       id: f.id,
       label: f.label,
       isDefault: f.isDefault,
+      mode: f.mode,
       fileAssetId: f.fileAssetId,
+      contentText: f.contentText,
+      contentLanguage: f.contentLanguage,
+      withOemLogo: f.withOemLogo,
     })),
   };
 }

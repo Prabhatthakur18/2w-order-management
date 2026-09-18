@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
-import { renderProformaInvoice } from "@/lib/proforma";
+import { getConfig } from "@/lib/catalog";
+import {
+  renderProformaInvoice,
+  DEFAULT_PI_COMPANY,
+  type PiCompany,
+} from "@/lib/proforma";
 
 /**
  * Generates the Proforma Invoice at request time from live order state.
@@ -34,7 +39,7 @@ export async function GET(
     include: {
       dealer: true,
       subDealer: true,
-      scheme: true,
+      printingFrame: true,
       lines: { orderBy: { createdAt: "asc" } },
       createdBy: { select: { name: true } },
     },
@@ -59,7 +64,28 @@ export async function GET(
     },
   });
 
-  return new NextResponse(renderProformaInvoice(order), {
+  // Seller details are Admin-editable in SystemConfig; fall back to the
+  // built-in defaults if a row is missing.
+  const cfg = await getConfig([
+    "company.name",
+    "company.address_line1",
+    "company.address_line2",
+    "company.gstin",
+    "company.state_name",
+    "company.email",
+    "company.pan",
+  ]);
+  const company: PiCompany = {
+    name: cfg["company.name"] || DEFAULT_PI_COMPANY.name,
+    addressLine1: cfg["company.address_line1"] || DEFAULT_PI_COMPANY.addressLine1,
+    addressLine2: cfg["company.address_line2"] || DEFAULT_PI_COMPANY.addressLine2,
+    gstin: cfg["company.gstin"] || DEFAULT_PI_COMPANY.gstin,
+    stateName: cfg["company.state_name"] || DEFAULT_PI_COMPANY.stateName,
+    email: cfg["company.email"] || DEFAULT_PI_COMPANY.email,
+    pan: cfg["company.pan"] || DEFAULT_PI_COMPANY.pan,
+  };
+
+  return new NextResponse(renderProformaInvoice(order, company), {
     headers: {
       "Content-Type": "text/html; charset=utf-8",
       // Always regenerated; a cached copy would show stale figures.

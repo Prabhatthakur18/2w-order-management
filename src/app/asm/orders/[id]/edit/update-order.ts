@@ -1,12 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import Decimal from "decimal.js";
 import type { PackingUnit } from "@prisma/client";
 import { requireRole } from "@/lib/guard";
 import { db } from "@/lib/db";
 import { orderDraftSchema, type OrderLineDraft } from "@/lib/order-draft";
-import { calculateOrder, combinedDiscountPct } from "@/lib/pricing";
+import { calculateOrder, dealerDiscountPctNumber } from "@/lib/pricing";
 import { getCurrentPrice, getDiscountRule } from "@/lib/catalog";
 import { isEditable } from "@/lib/order-lifecycle";
 
@@ -14,11 +13,13 @@ export type UpdateOrderResult =
   | { ok: true; orderId: string }
   | { ok: false; error: string };
 
+const MAX_CREDIT_DAYS = 45;
+
 /**
  * Updates an order still inside its edit window.
  *
  * Like createOrder, the client is untrusted: prices and GST rates are
- * re-resolved from the database, discount caps re-enforced, and the edit
+ * re-resolved from the database, the discount band re-checked, and the edit
  * window re-checked server-side.
  */
 export async function updateOrder(
@@ -55,6 +56,18 @@ export async function updateOrder(
   if (!draft.paymentMode)
     return { ok: false, error: "Select a payment mode." };
 
+  let creditDays: number | null = null;
+  if (draft.paymentMode === "CREDIT") {
+    const days = Number(draft.creditDays);
+    if (!Number.isInteger(days) || days <= 0 || days > MAX_CREDIT_DAYS) {
+      return {
+        ok: false,
+        error: `Enter a credit limit between 1 and ${MAX_CREDIT_DAYS} days.`,
+      };
+    }
+    creditDays = days;
+  }
+
   const dealer = await db.dealer.findFirst({
     where: { id: draft.dealerId, isActive: true },
   });
@@ -90,38 +103,23 @@ export async function updateOrder(
     });
   }
 
+  // Scheme is a selectable label only — no cost effect (business direction).
   const scheme = draft.schemeId
-    ? await db.scheme.findFirst({
-        where: { id: draft.schemeId, isActive: true },
-      })
+    ? await db.scheme.findFirst({ where: { id: draft.schemeId, isActive: true } })
     : null;
 
   const totals = calculateOrder(pricedLines, {
     dealerDiscountPct: draft.dealerDiscountPct,
-    schemeDiscountPct: scheme?.discountPct?.toString() ?? "0",
-    schemeFlatAmount: scheme?.flatAmount?.toString() ?? "0",
+    paymentMode: draft.paymentMode,
   });
 
   const rule = await getDiscountRule();
-  if (rule) {
-    const combined = combinedDiscountPct(totals);
-    if (combined.gt(new Decimal(rule.maxCombinedPct.toString()))) {
-      return {
-        ok: false,
-        error: `Combined discount ${combined.toFixed(2)}% exceeds the ${rule.maxCombinedPct}% cap.`,
-      };
-    }
-    if (
-      !rule.allowStacking &&
-      new Decimal(draft.dealerDiscountPct || "0").gt(0) &&
-      scheme
-    ) {
-      return {
-        ok: false,
-        error: "Dealer discount and scheme cannot be combined.",
-      };
-    }
-  }
+  const discountPctNum = dealerDiscountPctNumber(draft.dealerDiscountPct || "0");
+  const needsDiscountApproval = rule
+    ? discountPctNum > 0 &&
+      (discountPctNum < Number(rule.minDealerPct) ||
+        discountPctNum > Number(rule.maxDealerPct))
+    : false;
 
   try {
     await db.$transaction(async (tx) => {
@@ -150,7 +148,8 @@ export async function updateOrder(
             name: draft.newSubDealer.name,
             address: draft.newSubDealer.address,
             contactNo: draft.newSubDealer.contactNo,
-            isVerified: false,
+            approvalStatus: "PENDING",
+            createdById: session.user.id,
           },
         });
         subDealerId = created.id;
@@ -164,9 +163,11 @@ export async function updateOrder(
         where: { id: orderId },
         data: {
           paymentMode: draft.paymentMode,
+          creditDays,
           dealerId: dealer.id,
           subDealerId,
           printingFrameId: draft.printingFrameId || null,
+          preferredTransporterId: draft.preferredTransporterId || null,
           shippingSameAsDealer: draft.shippingSameAsDealer,
           shippingAddress: draft.shippingSameAsDealer
             ? null
@@ -182,8 +183,9 @@ export async function updateOrder(
           grossValue: totals.gross.toString(),
           dealerDiscountPct: draft.dealerDiscountPct || "0",
           dealerDiscountAmt: totals.dealerDiscountAmt.toString(),
+          needsDiscountApproval,
           schemeId: scheme?.id ?? null,
-          schemeDiscountAmt: totals.schemeDiscountAmt.toString(),
+          cashDiscountAmt: totals.cashDiscountAmt.toString(),
           netValue: totals.net.toString(),
           gstAmount: totals.gstAmount.toString(),
           totalValue: totals.total.toString(),
@@ -201,6 +203,7 @@ export async function updateOrder(
                 unitPrice: l.unitPrice,
                 lineGross: lt.gross.toString(),
                 discountAmt: lt.discountAmt.toString(),
+                cashDiscountAmt: lt.cashDiscountAmt.toString(),
                 gstRatePct: l.gstRatePct,
                 gstAmount: lt.gstAmount.toString(),
                 lineNet: lt.net.toString(),
@@ -217,7 +220,7 @@ export async function updateOrder(
           entityId: orderId,
           action: "EDITED",
           fromValue: { total: before.totalValue.toString() },
-          toValue: { total: totals.total.toString() },
+          toValue: { total: totals.total.toString(), needsDiscountApproval },
           actorId: session.user.id,
         },
       });

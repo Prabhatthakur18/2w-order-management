@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { CheckCircle2, Mail, MessageCircle } from "lucide-react";
+import { CheckCircle2, Mail, MessageCircle, TriangleAlert } from "lucide-react";
 import { requireRole } from "@/lib/guard";
 import { db } from "@/lib/db";
 import { PageHeader } from "@/components/dashboard";
@@ -37,12 +37,18 @@ export default async function OrderDetailPage({
       dealer: true,
       subDealer: true,
       scheme: true,
+      preferredTransporter: true,
       lines: { orderBy: { createdAt: "asc" } },
       createdBy: { select: { name: true } },
       dealerNotifications: { orderBy: { createdAt: "desc" } },
       payments: {
         where: { mode: "ADVANCE" },
-        include: { receipts: { orderBy: { uploadedAt: "desc" } } },
+        include: {
+          receipts: {
+            orderBy: { uploadedAt: "desc" },
+            include: { fileAsset: { select: { originalName: true } } },
+          },
+        },
       },
     },
   });
@@ -59,6 +65,14 @@ export default async function OrderDetailPage({
         <p className="mb-4 flex items-center gap-2 rounded-xl bg-success/10 p-3 text-sm font-medium text-success">
           <CheckCircle2 className="h-4 w-4 shrink-0" />
           Order created. You can still edit it before it is placed.
+        </p>
+      ) : null}
+
+      {order.needsDiscountApproval ? (
+        <p className="mb-4 flex items-center gap-2 rounded-xl bg-warning/10 p-3 text-sm font-medium text-warning">
+          <TriangleAlert className="h-4 w-4 shrink-0" />
+          Dealer discount ({order.dealerDiscountPct?.toString()}%) is outside
+          the normal range and needs Admin approval.
         </p>
       ) : null}
 
@@ -141,6 +155,7 @@ export default async function OrderDetailPage({
                 id: r.id,
                 fileAssetId: r.fileAssetId,
                 uploadedAt: r.uploadedAt,
+                fileName: r.fileAsset.originalName,
               })),
             )}
           />
@@ -176,8 +191,18 @@ export default async function OrderDetailPage({
             ) : null}
             <Row
               label="Payment"
-              value={order.paymentMode === "CREDIT" ? "Credit" : "Advance"}
+              value={
+                order.paymentMode === "CREDIT"
+                  ? `Credit — ${order.creditDays ?? "—"} days`
+                  : "Advance"
+              }
             />
+            {order.preferredTransporter ? (
+              <Row
+                label="Preferred transportation"
+                value={order.preferredTransporter.name}
+              />
+            ) : null}
             <Row
               label="Shipping"
               value={
@@ -206,9 +231,6 @@ export default async function OrderDetailPage({
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">
                       {l.description}
-                    </p>
-                    <p className="font-mono text-[10px] text-muted-foreground">
-                      {l.productCode}
                     </p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       {l.qty} {l.packingUnit} × {formatINR(l.unitPrice.toString())}
@@ -239,11 +261,14 @@ export default async function OrderDetailPage({
                 value={`− ${formatINR(order.dealerDiscountAmt.toString())}`}
               />
             ) : null}
-            {Number(order.schemeDiscountAmt) > 0 ? (
+            {Number(order.cashDiscountAmt) > 0 ? (
               <Row
-                label={`Scheme${order.scheme ? ` — ${order.scheme.name}` : ""}`}
-                value={`− ${formatINR(order.schemeDiscountAmt.toString())}`}
+                label="Cash discount (4%)"
+                value={`− ${formatINR(order.cashDiscountAmt.toString())}`}
               />
+            ) : null}
+            {order.scheme ? (
+              <Row label="Scheme" value={order.scheme.name} />
             ) : null}
             <Row
               label="Net (before GST)"

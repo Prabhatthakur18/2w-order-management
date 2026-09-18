@@ -1,6 +1,9 @@
 import "server-only";
 import type { Prisma } from "@prisma/client";
+import Decimal from "decimal.js";
 import { formatINR, formatDate } from "@/lib/utils";
+import { amountInWords } from "@/lib/number-to-words";
+import { discountedRate, CASH_DISCOUNT_PCT } from "@/lib/pricing";
 
 /**
  * Proforma Invoice — rendered at runtime from live order state and streamed
@@ -8,60 +11,118 @@ import { formatINR, formatDate } from "@/lib/utils";
  * (TECH_STACK.md §4A). Only the PI *number* persists.
  *
  * Deliberately a plain HTML document: the browser's own print-to-PDF handles
- * output, so there is no headless-Chromium dependency. Swap the markup when
- * the real invoice format arrives — nothing else needs to change.
+ * output, so there is no headless-Chromium dependency.
+ *
+ * Figures follow the trade format this business actually uses:
+ *
+ *   Rate    = unit price − dealer discount %   (the dealer cut is NOT shown
+ *             anywhere on this document — it is folded into Rate)
+ *   Amount  = Rate × Qty − cash discount 4%    (cash discount on Advance only)
+ *   Total   = Σ Amount + GST
+ *
+ * The printed Rate is authoritative: every figure on the page multiplies out
+ * exactly, so a dealer checking the arithmetic by hand always reconciles.
+ * That means these totals are recomputed here rather than read from
+ * Order.netValue/totalValue, and can differ from those stored values by a
+ * few paise.
  */
 
 type OrderForPi = Prisma.OrderGetPayload<{
   include: {
     dealer: true;
     subDealer: true;
-    scheme: true;
+    printingFrame: true;
     lines: true;
     createdBy: { select: { name: true } };
   };
 }>;
 
-const COMPANY = {
-  name: "Autoform India",
-  addressLines: ["Registered Office", "India"],
-  gstin: "—",
+export type PiCompany = {
+  name: string;
+  addressLine1: string;
+  addressLine2: string;
+  gstin: string;
+  stateName: string;
+  email: string;
+  pan: string;
 };
 
-export function renderProformaInvoice(order: OrderForPi): string {
-  const shipTo = order.shippingSameAsDealer
-    ? `${order.dealer.address}, ${order.dealer.city}, ${order.dealer.state} — ${order.dealer.pincode}`
-    : [
-        order.shippingAddress,
-        order.shippingCity,
-        order.shippingState,
-        order.shippingPincode,
+/** Used when SystemConfig has no row for a field. */
+export const DEFAULT_PI_COMPANY: PiCompany = {
+  name: "A V ENTERPRISES",
+  addressLine1: "C-2/2/2 2ND FLOOR UPSIDC INDUSTRIAL AREA",
+  addressLine2: "CENTRAL HOPE TOWN SELAQUI DEHRADUN-248011",
+  gstin: "05ABOFA2141B1Z2",
+  stateName: "Uttarakhand",
+  email: "srnaccounts@autoformindia.com",
+  pan: "ABOFA2141B",
+};
+
+export function renderProformaInvoice(
+  order: OrderForPi,
+  company: PiCompany = DEFAULT_PI_COMPANY,
+): string {
+  const isAdvance = order.paymentMode === "ADVANCE";
+  const cashPct = isAdvance ? new Decimal(CASH_DISCOUNT_PCT) : new Decimal(0);
+
+  const shipToLines = order.shippingSameAsDealer
+    ? [
+        `${order.dealer.address}`,
+        `${order.dealer.city}, ${order.dealer.state} — ${order.dealer.pincode}`,
       ]
-        .filter(Boolean)
-        .join(", ");
+    : [
+        order.shippingAddress ?? "",
+        [order.shippingCity, order.shippingState, order.shippingPincode]
+          .filter(Boolean)
+          .join(", "),
+      ].filter(Boolean);
+
+  let taxable = new Decimal(0);
+  let taxTotal = new Decimal(0);
+  let qtyTotal = new Decimal(0);
 
   const rows = order.lines
-    .map(
-      (l, i) => `
+    .map((l, i) => {
+      const rate = discountedRate(
+        l.unitPrice.toString(),
+        order.dealerDiscountPct?.toString() ?? "0",
+      );
+      const beforeCash = rate.mul(l.qty).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+      const cashCut = beforeCash
+        .mul(cashPct)
+        .div(100)
+        .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+      const amount = beforeCash.sub(cashCut);
+      const tax = amount
+        .mul(new Decimal(l.gstRatePct.toString()))
+        .div(100)
+        .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+
+      taxable = taxable.add(amount);
+      taxTotal = taxTotal.add(tax);
+      qtyTotal = qtyTotal.add(l.qty);
+
+      return `
       <tr>
         <td class="num">${i + 1}</td>
         <td>
           <div class="strong">${esc(l.description)}</div>
-          <div class="muted mono">${esc(l.productCode)}</div>
-          ${l.remarks ? `<div class="muted italic">${esc(l.remarks)}</div>` : ""}
+          <div class="muted italic">${esc(modelCode(l.productCode))}</div>
         </td>
-        <td class="num">${l.qty} ${l.packingUnit}</td>
-        <td class="num">${formatINR(l.unitPrice.toString())}</td>
-        <td class="num">${formatINR(l.lineGross.toString())}</td>
-        <td class="num">${Number(l.discountAmt) > 0 ? "− " + formatINR(l.discountAmt.toString()) : "—"}</td>
-        <td class="num">${l.gstRatePct.toString()}%</td>
-        <td class="num">${formatINR(l.gstAmount.toString())}</td>
-        <td class="num strong">${formatINR(
-          (Number(l.lineNet) + Number(l.gstAmount)).toFixed(2),
-        )}</td>
-      </tr>`,
-    )
+        <td class="num">${esc(l.gstRatePct.toString())} %</td>
+        <td class="num">${esc(l.qty.toString())}.00 ${esc(l.packingUnit)}</td>
+        <td class="num">${fmt(rate)}</td>
+        <td class="num">${isAdvance ? `${esc(CASH_DISCOUNT_PCT)} %` : ""}</td>
+        <td class="num strong">${fmt(amount)}</td>
+      </tr>`;
+    })
     .join("");
+
+  // Invoiced amount is a whole rupee; the paise are shown as their own
+  // Round off line so the arithmetic on the page still reconciles.
+  const beforeRounding = taxable.add(taxTotal);
+  const grandTotal = beforeRounding.toDecimalPlaces(0, Decimal.ROUND_HALF_UP);
+  const roundOff = grandTotal.sub(beforeRounding);
 
   return `<!doctype html>
 <html lang="en">
@@ -73,46 +134,46 @@ export function renderProformaInvoice(order: OrderForPi): string {
   * { box-sizing: border-box; }
   body {
     font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    color: #16233a; margin: 0; padding: 24px; background: #f6f8fb;
+    color: #111; margin: 0; padding: 24px; background: #f4f5f7; font-size: 12px;
   }
-  .sheet {
-    max-width: 900px; margin: 0 auto; background: #fff; padding: 32px;
-    border-radius: 12px; box-shadow: 0 2px 16px rgba(0,0,0,.06);
-  }
-  header { display: flex; justify-content: space-between; gap: 24px;
-    border-bottom: 2px solid #2563eb; padding-bottom: 16px; margin-bottom: 20px; }
-  h1 { font-size: 20px; margin: 0 0 4px; letter-spacing: -.01em; }
-  .doc-title { font-size: 13px; font-weight: 700; text-transform: uppercase;
-    letter-spacing: .08em; color: #2563eb; }
-  .meta { text-align: right; font-size: 12px; }
-  .meta div { margin-bottom: 2px; }
-  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
-  .box { border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; }
-  .label { font-size: 10px; font-weight: 700; text-transform: uppercase;
-    letter-spacing: .08em; color: #64748b; margin-bottom: 6px; }
-  table { width: 100%; border-collapse: collapse; font-size: 12px; }
-  th { background: #f1f5f9; text-align: left; padding: 8px; font-size: 10px;
-    text-transform: uppercase; letter-spacing: .06em; color: #475569;
-    border-bottom: 1px solid #e2e8f0; }
-  td { padding: 8px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+  .sheet { max-width: 900px; margin: 0 auto; background: #fff; border: 1px solid #000; }
+  .title { text-align: center; font-weight: 700; font-size: 13px; padding: 6px;
+    border-bottom: 1px solid #000; letter-spacing: .04em; }
+  .split { display: grid; grid-template-columns: 1fr 1fr; }
+  .split > div + div { border-left: 1px solid #000; }
+  .cell { padding: 8px 10px; }
+  .rowline { border-bottom: 1px solid #000; }
+  .label { font-size: 10px; color: #444; }
+  .strong { font-weight: 700; }
+  .muted { color: #555; font-size: 11px; }
+  .italic { font-style: italic; }
+  .kv { display: grid; grid-template-columns: 1fr 1fr; }
+  .kv > div { padding: 6px 10px; border-bottom: 1px solid #000; }
+  .kv > div:nth-child(even) { border-left: 1px solid #000; }
+  table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+  th { background: #f0f0f0; text-align: left; padding: 6px 8px; font-size: 10px;
+    text-transform: uppercase; letter-spacing: .04em; border-bottom: 1px solid #000;
+    border-top: 1px solid #000; }
+  td { padding: 6px 8px; border-bottom: 1px solid #ddd; vertical-align: top; }
   .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
   th.num { text-align: right; }
-  .strong { font-weight: 600; }
-  .muted { color: #64748b; font-size: 11px; }
-  .mono { font-family: ui-monospace, monospace; }
-  .italic { font-style: italic; }
-  .totals { margin-left: auto; margin-top: 16px; width: 300px; font-size: 13px; }
-  .totals div { display: flex; justify-content: space-between; padding: 5px 0; }
-  .totals .grand { border-top: 2px solid #16233a; margin-top: 6px; padding-top: 10px;
-    font-size: 16px; font-weight: 700; }
-  footer { margin-top: 28px; padding-top: 14px; border-top: 1px solid #e2e8f0;
-    font-size: 11px; color: #64748b; }
+  .totals { display: flex; justify-content: flex-end; }
+  .totals table { width: auto; min-width: 320px; }
+  .totals td { border: 0; padding: 4px 10px; }
+  .totals tr.grand td { border-top: 1px solid #000; font-weight: 700; font-size: 13px;
+    padding-top: 7px; }
+  .words { padding: 8px 10px; border-top: 1px solid #000; border-bottom: 1px solid #000; }
+  .decl { display: grid; grid-template-columns: 1fr 1fr; }
+  .decl > div { padding: 10px; }
+  .decl > div + div { border-left: 1px solid #000; text-align: right; }
+  .sign { margin-top: 42px; font-size: 11px; }
+  .foot { text-align: center; font-size: 10px; color: #555; padding: 6px; }
   .actions { max-width: 900px; margin: 0 auto 14px; text-align: right; }
   button { font: inherit; font-size: 13px; font-weight: 600; padding: 9px 16px;
     border-radius: 8px; border: 0; background: #2563eb; color: #fff; cursor: pointer; }
   @media print {
-    body { background: #fff; padding: 0; }
-    .sheet { box-shadow: none; border-radius: 0; padding: 0; max-width: none; }
+    body { background: #fff; padding: 0; font-size: 11px; }
+    .sheet { border: 1px solid #000; max-width: none; }
     .actions { display: none; }
   }
 </style>
@@ -120,75 +181,161 @@ export function renderProformaInvoice(order: OrderForPi): string {
 <body>
   <div class="actions"><button onclick="window.print()">Print / Save as PDF</button></div>
   <div class="sheet">
-    <header>
-      <div>
-        <h1>${esc(COMPANY.name)}</h1>
-        <div class="muted">${COMPANY.addressLines.map(esc).join("<br>")}</div>
-        <div class="muted">GSTIN: ${esc(COMPANY.gstin)}</div>
-      </div>
-      <div class="meta">
-        <div class="doc-title">Proforma Invoice</div>
-        <div class="strong mono">${esc(order.piNumber ?? "—")}</div>
-        <div class="muted">Order ${esc(order.orderNo)}</div>
-        <div class="muted">${formatDate(order.piIssuedAt ?? order.createdAt)}</div>
-      </div>
-    </header>
+    <div class="title">PROFORMA INVOICE</div>
 
-    <div class="grid">
-      <div class="box">
-        <div class="label">Bill to</div>
-        <div class="strong">${esc(order.dealer.name)}</div>
-        <div class="muted">${esc(order.dealer.address)}, ${esc(order.dealer.city)},
-          ${esc(order.dealer.state)} — ${esc(order.dealer.pincode)}</div>
-        <div class="muted">Contact: ${esc(order.dealer.contactNo)}</div>
-        ${order.dealer.gstin ? `<div class="muted">GSTIN: ${esc(order.dealer.gstin)}</div>` : ""}
+    <div class="split rowline">
+      <div class="cell">
+        <div class="strong">${esc(company.name)}</div>
+        <div class="muted">${esc(company.addressLine1)}</div>
+        <div class="muted">${esc(company.addressLine2)}</div>
+        <div class="muted">GSTIN/UIN: ${esc(company.gstin)}</div>
+        <div class="muted">State Name : ${esc(company.stateName)}</div>
+        <div class="muted">E-Mail : ${esc(company.email)}</div>
       </div>
-      <div class="box">
-        <div class="label">Ship to</div>
-        ${order.subDealer ? `<div class="strong">${esc(order.subDealer.name)}</div>` : ""}
-        <div class="muted">${esc(shipTo)}</div>
-        <div class="muted">Payment: ${order.paymentMode === "CREDIT" ? "Credit" : "Advance"}</div>
+      <div>
+        <div class="kv">
+          <div>
+            <div class="label">Invoice No.</div>
+            <div class="strong">${esc(order.piNumber ?? "—")}</div>
+          </div>
+          <div>
+            <div class="label">Dated</div>
+            <div class="strong">${formatDate(order.piIssuedAt ?? order.createdAt)}</div>
+          </div>
+          <div>
+            <div class="label">Mode/Terms of Payment</div>
+            <div class="strong">${order.paymentMode === "CREDIT" ? `Credit${order.creditDays ? ` — ${order.creditDays} Days` : ""}` : "Advance"}</div>
+          </div>
+          <div>
+            <div class="label">Order No.</div>
+            <div class="strong">${esc(order.orderNo)}</div>
+          </div>
+          <div style="grid-column: 1 / -1; border-bottom: 0;">
+            <div class="label">Printing Frame</div>
+            <div class="strong">${esc(printingFrameText(order.printingFrame))}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="split rowline">
+      <div class="cell">
+        <div class="label">Consignee (Ship to)</div>
+        <div class="strong">${esc(order.subDealer?.name ?? order.dealer.name)}</div>
+        ${shipToLines.map((line) => `<div class="muted">${esc(line)}</div>`).join("")}
+        <div class="muted">MOB-${esc(order.dealer.contactNo)}</div>
+        ${order.subDealer?.gstin || order.dealer.gstin ? `<div class="muted">GSTIN/UIN : ${esc(order.subDealer?.gstin ?? order.dealer.gstin)}</div>` : ""}
+        <div class="muted">State Name : ${esc(order.shippingSameAsDealer ? order.dealer.state : (order.shippingState ?? order.dealer.state))}</div>
+      </div>
+      <div class="cell">
+        <div class="label">Buyer (Bill to)</div>
+        <div class="strong">${esc(order.dealer.name)}</div>
+        <div class="muted">${esc(order.dealer.address)}</div>
+        <div class="muted">${esc(order.dealer.city)}, ${esc(order.dealer.state)} — ${esc(order.dealer.pincode)}</div>
+        <div class="muted">MOB-${esc(order.dealer.contactNo)}</div>
+        ${order.dealer.gstin ? `<div class="muted">GSTIN/UIN : ${esc(order.dealer.gstin)}</div>` : ""}
+        <div class="muted">State Name : ${esc(order.dealer.state)}</div>
       </div>
     </div>
 
     <table>
       <thead>
         <tr>
-          <th class="num">#</th><th>Item</th><th class="num">Qty</th>
-          <th class="num">Rate</th><th class="num">Gross</th><th class="num">Discount</th>
-          <th class="num">GST</th><th class="num">Tax</th><th class="num">Amount</th>
+          <th class="num">Sl</th>
+          <th>Description of Goods</th>
+          <th class="num">GST</th>
+          <th class="num">Quantity</th>
+          <th class="num">Rate</th>
+          <th class="num">Disc. %</th>
+          <th class="num">Amount</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
+      <tfoot>
+        <tr>
+          <td></td>
+          <td class="strong">Total</td>
+          <td></td>
+          <td class="num strong">${esc(qtyTotal.toString())}.00</td>
+          <td></td>
+          <td></td>
+          <td class="num strong">${fmt(taxable)}</td>
+        </tr>
+      </tfoot>
     </table>
 
     <div class="totals">
-      <div><span>Gross</span><span>${formatINR(order.grossValue.toString())}</span></div>
-      ${
-        Number(order.dealerDiscountAmt) > 0
-          ? `<div><span>Dealer discount (${order.dealerDiscountPct ?? 0}%)</span><span>− ${formatINR(order.dealerDiscountAmt.toString())}</span></div>`
-          : ""
-      }
-      ${
-        Number(order.schemeDiscountAmt) > 0
-          ? `<div><span>Scheme${order.scheme ? " — " + esc(order.scheme.name) : ""}</span><span>− ${formatINR(order.schemeDiscountAmt.toString())}</span></div>`
-          : ""
-      }
-      <div><span>Net (before GST)</span><span>${formatINR(order.netValue.toString())}</span></div>
-      <div><span>GST</span><span>${formatINR(order.gstAmount.toString())}</span></div>
-      <div class="grand"><span>Total</span><span>${formatINR(order.totalValue.toString())}</span></div>
+      <table>
+        <tr><td>Taxable value</td><td class="num">${fmt(taxable)}</td></tr>
+        <tr><td>GST</td><td class="num">${fmt(taxTotal)}</td></tr>
+        ${
+          roundOff.isZero()
+            ? ""
+            : `<tr><td>Round off</td><td class="num">${roundOff.isNegative() ? "" : "+"}${fmt(roundOff)}</td></tr>`
+        }
+        <tr class="grand"><td>Total</td><td class="num">${formatINR(grandTotal.toString())}</td></tr>
+      </table>
     </div>
 
-    ${order.remarks ? `<div class="box" style="margin-top:20px"><div class="label">Remarks</div><div>${esc(order.remarks)}</div></div>` : ""}
+    <div class="words">
+      <div class="label">Amount Chargeable (in words)</div>
+      <div class="strong">${esc(amountInWords(grandTotal.toString()))}</div>
+    </div>
 
-    <footer>
-      This is a proforma invoice and not a tax invoice. Generated on
-      ${formatDate(new Date())} by ${esc(order.createdBy.name)}.
-      Values are indicative until the tax invoice is issued.
-    </footer>
+    ${order.remarks ? `<div class="cell rowline"><div class="label">Remarks</div><div>${esc(order.remarks)}</div></div>` : ""}
+
+    <div class="decl">
+      <div>
+        <div class="muted">Company's PAN : <span class="strong">${esc(company.pan)}</span></div>
+        <div class="label" style="margin-top:8px">Declaration</div>
+        <div class="muted">
+          We declare that this invoice shows the actual price of the goods
+          described and that all particulars are true and correct.
+        </div>
+      </div>
+      <div>
+        <div class="strong">for ${esc(company.name)}</div>
+        <div class="sign">Authorised Signatory</div>
+      </div>
+    </div>
+
+    <div class="foot">
+      This is a Computer Generated Invoice · generated ${formatDate(new Date())}
+      by ${esc(order.createdBy.name)}
+    </div>
   </div>
 </body>
 </html>`;
+}
+
+/**
+ * What to print for the printing frame. An artwork file can't be reproduced
+ * on an invoice and its internal label ("UID_REF_02") means nothing to the
+ * dealer, so image frames just say so. Typed content is the instruction
+ * itself, so it prints.
+ */
+function printingFrameText(frame: OrderForPi["printingFrame"]): string {
+  if (!frame) return "—";
+  if (frame.mode === "IMAGE") return "Image attached";
+  const text = (frame.contentText ?? "").trim();
+  if (!text) return "Content attached";
+  return text.length > 120 ? `${text.slice(0, 120)}…` : text;
+}
+
+/**
+ * OEM and vehicle only, from a full product code — the part and colour are
+ * already named in the description, so repeating them under it is noise.
+ * "HONDA-ACT6G-AC-FM-003-BLA" -> "HONDA-ACT6G".
+ */
+function modelCode(productCode: string): string {
+  return productCode.split("-").slice(0, 2).join("-");
+}
+
+/** Plain 2dp with thousands separators — the table shows bare figures, no ₹. */
+function fmt(v: Decimal): string {
+  const [whole, decimals] = v.toFixed(2).split(".");
+  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return `${grouped}.${decimals}`;
 }
 
 /** Order data is user-supplied; escape everything interpolated into HTML. */

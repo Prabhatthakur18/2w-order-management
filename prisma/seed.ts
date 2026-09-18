@@ -5,6 +5,12 @@ const db = new PrismaClient();
 
 const DEMO_PASSWORD = "Passw0rd!";
 
+// One demo login per role, for local development only. Real users — e.g.
+// additional ASMs, each with their own email and password — are created by
+// an Admin at /admin/users, not by editing this list. Login is two-step
+// (password, then a 6-digit code); the code is logged to the server
+// console rather than emailed/texted until a real OTP provider is chosen
+// (see src/lib/otp.ts).
 const users: { email: string; name: string; roles: Role[] }[] = [
   { email: "admin@autoformindia.com", name: "Admin User", roles: ["ADMIN"] },
   { email: "asm@autoformindia.com", name: "ASM User", roles: ["ASM"] },
@@ -107,6 +113,66 @@ const config: {
     label: "Dealer portal enabled",
     description:
       "Dealer logins stay off until the business confirms in-app approval.",
+  },
+
+  // Printed on the Proforma Invoice. Seeded with the real values so the
+  // document is correct out of the box; Admin can change them here without
+  // a code change (see src/lib/proforma.ts).
+  {
+    key: "company.name",
+    value: "A V ENTERPRISES",
+    valueType: "string",
+    category: "Company",
+    label: "Company name",
+    description: "Seller name printed at the top of the Proforma Invoice.",
+  },
+  {
+    key: "company.address_line1",
+    value: "C-2/2/2 2ND FLOOR UPSIDC INDUSTRIAL AREA",
+    valueType: "string",
+    category: "Company",
+    label: "Address line 1",
+    description: "First line of the seller's registered address.",
+  },
+  {
+    key: "company.address_line2",
+    value: "CENTRAL HOPE TOWN SELAQUI DEHRADUN-248011",
+    valueType: "string",
+    category: "Company",
+    label: "Address line 2",
+    description: "Second line of the seller's registered address.",
+  },
+  {
+    key: "company.gstin",
+    value: "05ABOFA2141B1Z2",
+    valueType: "string",
+    category: "Company",
+    label: "Company GSTIN",
+    description: "Seller's GSTIN/UIN as printed on invoices.",
+  },
+  {
+    key: "company.state_name",
+    value: "Uttarakhand",
+    valueType: "string",
+    category: "Company",
+    label: "State name",
+    description: "Seller's state, printed under the GSTIN.",
+  },
+  {
+    key: "company.email",
+    value: "srnaccounts@autoformindia.com",
+    valueType: "string",
+    category: "Company",
+    label: "Accounts email",
+    description: "Contact email printed on the Proforma Invoice.",
+  },
+  {
+    key: "company.pan",
+    value: "ABOFA2141B",
+    valueType: "string",
+    category: "Company",
+    label: "Company PAN",
+    description: "Printed in the declaration block of the Proforma Invoice.",
   },
 ];
 

@@ -36,9 +36,18 @@ export const orderDraftSchema = z.object({
   subDealerId: z.string().default(""),
   newSubDealer: z
     .object({
+      gstin: z.string().default(""),
       name: z.string(),
       address: z.string(),
+      city: z.string().default(""),
+      state: z.string().default(""),
+      pincode: z.string().default(""),
       contactNo: z.string(),
+      email: z.string().default(""),
+      gstLegalName: z.string().default(""),
+      gstTradeName: z.string().default(""),
+      gstStatus: z.string().default(""),
+      gstRegisteredAt: z.string().default(""),
     })
     .nullable()
     .default(null),
@@ -57,6 +66,10 @@ export const orderDraftSchema = z.object({
 
   // Module 3 — payment
   paymentMode: z.enum(["CREDIT", "ADVANCE"]).nullable().default(null),
+  // Credit only — ASM-entered, capped at 45 days. "Credit Limit (days)" in the UI.
+  creditDays: z.string().default(""),
+  // Preferred transportation (courier), selected on the review step.
+  preferredTransporterId: z.string().default(""),
 
   updatedAt: z.string().default(() => new Date().toISOString()),
 });
@@ -78,6 +91,8 @@ export const emptyDraft: OrderDraft = {
   schemeId: "",
   remarks: "",
   paymentMode: null,
+  creditDays: "",
+  preferredTransporterId: "",
   updatedAt: new Date().toISOString(),
 };
 
@@ -121,8 +136,8 @@ export function clearDraft() {
 export const STEPS = [
   { id: 1, slug: "parties", label: "Dealer", title: "Dealer & destination" },
   { id: 2, slug: "items", label: "Items", title: "Product configuration" },
-  { id: 3, slug: "terms", label: "Terms", title: "Discount & commercial terms" },
-  { id: 4, slug: "review", label: "Review", title: "Payment & review" },
+  { id: 3, slug: "terms", label: "Terms", title: "Payment & commercial terms" },
+  { id: 4, slug: "review", label: "Review", title: "Review & submit" },
 ] as const;
 
 export type StepSlug = (typeof STEPS)[number]["slug"];
@@ -131,7 +146,10 @@ export type StepSlug = (typeof STEPS)[number]["slug"];
 export function stepStatus(draft: OrderDraft) {
   const parties = Boolean(draft.dealerId);
   const items = draft.lines.length > 0;
-  const terms = items;
-  const review = items && draft.paymentMode !== null;
+  const validCreditDays =
+    draft.paymentMode !== "CREDIT" ||
+    (Number(draft.creditDays) > 0 && Number(draft.creditDays) <= 45);
+  const terms = items && draft.paymentMode !== null && validCreditDays;
+  const review = terms;
   return { parties, items, terms, review };
 }

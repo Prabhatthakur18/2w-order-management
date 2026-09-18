@@ -22,7 +22,14 @@ export default function RootLayout({
   // via a `dark` class on <html>, matching darkMode: ["class"].
   return (
     <html lang="en">
-      <body className="min-h-dvh antialiased">{children}</body>
+      {/* suppressHydrationWarning: browser extensions (e.g. Testim) inject
+          attributes like data-testim-main-word-scripts-loaded onto <body>
+          before React hydrates. That's not app state, so React's mismatch
+          warning here is noise, not a real bug — this only suppresses
+          warnings for this one element. */}
+      <body className="min-h-dvh antialiased" suppressHydrationWarning>
+        {children}
+      </body>
     </html>
   );
 }

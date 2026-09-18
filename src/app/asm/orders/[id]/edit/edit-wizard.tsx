@@ -56,15 +56,13 @@ export function EditOrderWizard({
   const update = (patch: Partial<OrderDraft>) =>
     setDraft((d) => ({ ...d, ...patch }));
 
-  const scheme = schemes.find((s) => s.id === draft.schemeId);
   const totals = useMemo(
     () =>
       calculateOrder(draft.lines, {
         dealerDiscountPct: draft.dealerDiscountPct,
-        schemeDiscountPct: scheme?.discountPct ?? "0",
-        schemeFlatAmount: scheme?.flatAmount ?? "0",
+        paymentMode: draft.paymentMode,
       }),
-    [draft.lines, draft.dealerDiscountPct, scheme],
+    [draft.lines, draft.dealerDiscountPct, draft.paymentMode],
   );
 
   const status = stepStatus(draft);

@@ -1,12 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import Decimal from "decimal.js";
 import { requireRole } from "@/lib/guard";
 import { db } from "@/lib/db";
 import type { PackingUnit } from "@prisma/client";
 import { orderDraftSchema, type OrderLineDraft } from "@/lib/order-draft";
-import { calculateOrder, combinedDiscountPct } from "@/lib/pricing";
+import { calculateOrder, dealerDiscountPctNumber } from "@/lib/pricing";
 import { getCurrentPrice, getDiscountRule } from "@/lib/catalog";
 import {
   allocateDocNumber,
@@ -18,10 +17,12 @@ export type CreateOrderResult =
   | { ok: true; orderId: string; orderNo: string }
   | { ok: false; error: string };
 
+const MAX_CREDIT_DAYS = 45;
+
 /**
  * Creates the order. Every client-side check is repeated here — prices are
  * re-resolved from the database rather than trusted from the payload, and
- * discount caps are re-enforced. The client is treated as untrusted input.
+ * the discount band is re-checked. The client is treated as untrusted input.
  */
 export async function createOrder(
   raw: unknown,
@@ -40,10 +41,32 @@ export async function createOrder(
   if (!draft.paymentMode)
     return { ok: false, error: "Select a payment mode." };
 
+  let creditDays: number | null = null;
+  if (draft.paymentMode === "CREDIT") {
+    const days = Number(draft.creditDays);
+    if (!Number.isInteger(days) || days <= 0 || days > MAX_CREDIT_DAYS) {
+      return {
+        ok: false,
+        error: `Enter a credit limit between 1 and ${MAX_CREDIT_DAYS} days.`,
+      };
+    }
+    creditDays = days;
+  }
+
   const dealer = await db.dealer.findFirst({
     where: { id: draft.dealerId, isActive: true },
   });
   if (!dealer) return { ok: false, error: "That dealer is not available." };
+
+  if (draft.preferredTransporterId) {
+    const transporter = await db.transporter.findFirst({
+      where: { id: draft.preferredTransporterId, isActive: true },
+      select: { id: true },
+    });
+    if (!transporter) {
+      return { ok: false, error: "That transporter is not available." };
+    }
+  }
 
   // Re-resolve every price server-side. A stale or tampered client price
   // must never reach the order.
@@ -81,55 +104,53 @@ export async function createOrder(
     });
   }
 
+  // Scheme is a selectable label only — no cost effect (business direction).
   const scheme = draft.schemeId
-    ? await db.scheme.findFirst({
-        where: { id: draft.schemeId, isActive: true },
-      })
+    ? await db.scheme.findFirst({ where: { id: draft.schemeId, isActive: true } })
     : null;
 
   const totals = calculateOrder(pricedLines, {
     dealerDiscountPct: draft.dealerDiscountPct,
-    schemeDiscountPct: scheme?.discountPct?.toString() ?? "0",
-    schemeFlatAmount: scheme?.flatAmount?.toString() ?? "0",
+    paymentMode: draft.paymentMode,
   });
 
-  // Re-enforce the Admin-configured discount rules (Report Rec #4).
+  // Dealer discount outside the Admin band never blocks the order — it just
+  // needs Admin approval afterwards (business direction).
   const rule = await getDiscountRule();
-  if (rule) {
-    const combined = combinedDiscountPct(totals);
-    if (combined.gt(new Decimal(rule.maxCombinedPct.toString()))) {
-      return {
-        ok: false,
-        error: `Combined discount ${combined.toFixed(2)}% exceeds the ${rule.maxCombinedPct}% cap.`,
-      };
-    }
-    if (
-      !rule.allowStacking &&
-      new Decimal(draft.dealerDiscountPct || "0").gt(0) &&
-      scheme
-    ) {
-      return {
-        ok: false,
-        error: "Dealer discount and scheme cannot be combined.",
-      };
-    }
-  }
+  const discountPctNum = dealerDiscountPctNumber(draft.dealerDiscountPct || "0");
+  const needsDiscountApproval = rule
+    ? discountPctNum > 0 &&
+      (discountPctNum < Number(rule.minDealerPct) ||
+        discountPctNum > Number(rule.maxDealerPct))
+    : false;
 
   const orderNo = await nextOrderNumber();
   const editWindowHours = await getEditWindowHours();
 
   try {
     const order = await db.$transaction(async (tx) => {
-      // Sub-dealer created inline is flagged unverified for Admin review.
+      // Sub-dealer created inline lands as PENDING, same as the standalone
+      // add-sub-dealer flow — it goes to the same Admin approval queue.
       let subDealerId = draft.subDealerId || null;
       if (!subDealerId && draft.newSubDealer?.name) {
+        const nsd = draft.newSubDealer;
         const created = await tx.subDealer.create({
           data: {
             dealerId: dealer.id,
-            name: draft.newSubDealer.name,
-            address: draft.newSubDealer.address,
-            contactNo: draft.newSubDealer.contactNo,
-            isVerified: false,
+            gstin: nsd.gstin || null,
+            name: nsd.name,
+            address: nsd.address,
+            city: nsd.city || null,
+            state: nsd.state || null,
+            pincode: nsd.pincode || null,
+            contactNo: nsd.contactNo,
+            email: nsd.email || null,
+            gstLegalName: nsd.gstLegalName || null,
+            gstTradeName: nsd.gstTradeName || null,
+            gstStatus: nsd.gstStatus || null,
+            gstRegisteredAt: nsd.gstRegisteredAt ? new Date(nsd.gstRegisteredAt) : null,
+            approvalStatus: "PENDING",
+            createdById: session.user.id,
           },
         });
         subDealerId = created.id;
@@ -141,9 +162,11 @@ export async function createOrder(
           status: "CREATED",
           editableUntil: editDeadline(new Date(), editWindowHours),
           paymentMode: draft.paymentMode,
+          creditDays,
           dealerId: dealer.id,
           subDealerId,
           printingFrameId: draft.printingFrameId || null,
+          preferredTransporterId: draft.preferredTransporterId || null,
           shippingSameAsDealer: draft.shippingSameAsDealer,
           shippingAddress: draft.shippingSameAsDealer
             ? null
@@ -159,8 +182,9 @@ export async function createOrder(
           grossValue: totals.gross.toString(),
           dealerDiscountPct: draft.dealerDiscountPct || "0",
           dealerDiscountAmt: totals.dealerDiscountAmt.toString(),
+          needsDiscountApproval,
           schemeId: scheme?.id ?? null,
-          schemeDiscountAmt: totals.schemeDiscountAmt.toString(),
+          cashDiscountAmt: totals.cashDiscountAmt.toString(),
           netValue: totals.net.toString(),
           gstAmount: totals.gstAmount.toString(),
           totalValue: totals.total.toString(),
@@ -179,6 +203,7 @@ export async function createOrder(
                 unitPrice: l.unitPrice,
                 lineGross: lt.gross.toString(),
                 discountAmt: lt.discountAmt.toString(),
+                cashDiscountAmt: lt.cashDiscountAmt.toString(),
                 gstRatePct: l.gstRatePct,
                 gstAmount: lt.gstAmount.toString(),
                 lineNet: lt.net.toString(),
@@ -194,7 +219,12 @@ export async function createOrder(
           entityType: "Order",
           entityId: created.id,
           action: "CREATED",
-          toValue: { orderNo, status: "DRAFT", total: totals.total.toString() },
+          toValue: {
+            orderNo,
+            status: "CREATED",
+            total: totals.total.toString(),
+            needsDiscountApproval,
+          },
           actorId: session.user.id,
         },
       });
@@ -214,4 +244,3 @@ export async function createOrder(
 async function nextOrderNumber(): Promise<string> {
   return allocateDocNumber(db, "ORDER");
 }
-

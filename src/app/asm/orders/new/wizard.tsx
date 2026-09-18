@@ -18,17 +18,25 @@ import { StepParties } from "./step-parties";
 import { StepItems } from "./step-items";
 import { StepTerms } from "./step-terms";
 import { StepReview } from "./step-review";
-import type { DealerOption, SchemeOption, OemOption, WizardConfig } from "./types";
+import type {
+  DealerOption,
+  SchemeOption,
+  OemOption,
+  TransporterOption,
+  WizardConfig,
+} from "./types";
 
 export function OrderWizard({
   dealers,
   oems,
   schemes,
+  transporters,
   config,
 }: {
   dealers: DealerOption[];
   oems: OemOption[];
   schemes: SchemeOption[];
+  transporters: TransporterOption[];
   config: WizardConfig;
 }) {
   const [draft, setDraft] = useState<OrderDraft>(emptyDraft);
@@ -50,16 +58,13 @@ export function OrderWizard({
   const update = (patch: Partial<OrderDraft>) =>
     setDraft((d) => ({ ...d, ...patch }));
 
-  const scheme = schemes.find((s) => s.id === draft.schemeId);
-
   const totals = useMemo(
     () =>
       calculateOrder(draft.lines, {
         dealerDiscountPct: draft.dealerDiscountPct,
-        schemeDiscountPct: scheme?.discountPct ?? "0",
-        schemeFlatAmount: scheme?.flatAmount ?? "0",
+        paymentMode: draft.paymentMode,
       }),
-    [draft.lines, draft.dealerDiscountPct, scheme],
+    [draft.lines, draft.dealerDiscountPct, draft.paymentMode],
   );
 
   const status = stepStatus(draft);
@@ -169,6 +174,7 @@ export function OrderWizard({
           draft={draft}
           dealers={dealers}
           schemes={schemes}
+          transporters={transporters}
           totals={totals}
           onChange={update}
           onSubmitted={() => {

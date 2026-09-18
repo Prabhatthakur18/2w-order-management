@@ -276,12 +276,10 @@ export function StepItems({
             />
           </Field>
 
-          {colour ? (
+          {part ? (
             <p className="text-xs text-muted-foreground">
-              Product code:{" "}
-              <span className="font-mono font-semibold">
-                {colour.productCode}
-              </span>
+              Part no:{" "}
+              <span className="font-mono font-semibold">{part.partNo}</span>
             </p>
           ) : null}
 
@@ -311,7 +309,7 @@ export function StepItems({
                     {l.oemName} · {l.vehicleName} · {l.colour}
                   </p>
                   <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">
-                    {l.productCode}
+                    {l.partNo}
                   </p>
                 </div>
                 <button

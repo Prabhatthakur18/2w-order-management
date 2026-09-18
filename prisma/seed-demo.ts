@@ -45,7 +45,9 @@ async function main() {
       city: "Kanpur",
       state: "Uttar Pradesh",
       pincode: "208001",
+      contactName: "Rajesh Sharma",
       contactNo: "9876543210",
+      gstin: "09ABCDE1234F1Z5",
       creditDays: 30,
       creditLimit: "500000",
     },
@@ -56,7 +58,9 @@ async function main() {
       city: "Ludhiana",
       state: "Punjab",
       pincode: "141001",
+      contactName: "Suresh Verma",
       contactNo: "9876500011",
+      gstin: "03PQRSX5678G1Z9",
       creditDays: 45,
       creditLimit: "750000",
     },
@@ -65,7 +69,7 @@ async function main() {
   for (const d of dealers) {
     const dealer = await db.dealer.upsert({
       where: { code: d.code },
-      update: {},
+      update: { ...d },
       create: { ...d, priceTierId: tier.id },
     });
 
@@ -81,7 +85,7 @@ async function main() {
         state: d.state,
         pincode: d.pincode,
         contactNo: d.contactNo,
-        isVerified: true,
+        approvalStatus: "APPROVED",
       },
     });
   }
@@ -193,11 +197,8 @@ async function main() {
     await db.discountRule.create({
       data: {
         name: "Default",
-        maxDealerPct: "20",
-        maxSchemePct: "10",
-        maxCombinedPct: "25",
-        allowStacking: true,
-        approvalAbovePct: "15",
+        minDealerPct: "45",
+        maxDealerPct: "59",
       },
     });
   }

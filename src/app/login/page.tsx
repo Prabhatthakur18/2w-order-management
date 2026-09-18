@@ -1,36 +1,11 @@
 import { redirect } from "next/navigation";
-import { AuthError } from "next-auth";
-import { AlertCircle } from "lucide-react";
-import { auth, signIn } from "@/auth";
+import { auth } from "@/auth";
 import { landingFor } from "@/lib/roles";
+import { LoginForm } from "./login-form";
 
-export default async function LoginPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ error?: string; callbackUrl?: string }>;
-}) {
+export default async function LoginPage() {
   const session = await auth();
   if (session?.user) redirect(landingFor(session.user.roles ?? []));
-
-  const { error } = await searchParams;
-
-  async function login(formData: FormData) {
-    "use server";
-    const email = String(formData.get("email") ?? "");
-    const password = String(formData.get("password") ?? "");
-
-    try {
-      await signIn("credentials", { email, password, redirect: false });
-    } catch (err) {
-      if (err instanceof AuthError) {
-        redirect("/login?error=1");
-      }
-      throw err;
-    }
-
-    const s = await auth();
-    redirect(landingFor(s?.user.roles ?? []));
-  }
 
   return (
     <main className="bg-grid relative flex min-h-dvh items-center justify-center overflow-hidden bg-app-wrapper px-4 py-10">
@@ -59,61 +34,7 @@ export default async function LoginPage({
           </p>
         </div>
 
-        <form
-          action={login}
-          className="glass-card space-y-4 rounded-3xl p-6"
-        >
-          {error ? (
-            <p
-              role="alert"
-              className="flex items-center gap-2 rounded-xl bg-destructive/10 px-3 py-2.5 text-sm font-medium text-destructive"
-            >
-              <AlertCircle className="h-4 w-4 shrink-0" />
-              Incorrect email or password.
-            </p>
-          ) : null}
-
-          <div>
-            <label
-              htmlFor="email"
-              className="mb-1.5 block text-xs font-bold uppercase tracking-[0.09em] text-muted-foreground"
-            >
-              Email
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              autoComplete="email"
-              required
-              className="h-11 w-full rounded-xl border border-input bg-background px-3.5 shadow-xs outline-none transition-all duration-200 hover:border-primary/30 focus-visible:border-primary focus-visible:ring-4 focus-visible:ring-primary/10"
-            />
-          </div>
-
-          <div>
-            <label
-              htmlFor="password"
-              className="mb-1.5 block text-xs font-bold uppercase tracking-[0.09em] text-muted-foreground"
-            >
-              Password
-            </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              className="h-11 w-full rounded-xl border border-input bg-background px-3.5 shadow-xs outline-none transition-all duration-200 hover:border-primary/30 focus-visible:border-primary focus-visible:ring-4 focus-visible:ring-primary/10"
-            />
-          </div>
-
-          <button
-            type="submit"
-            className="gradient-primary h-11 w-full rounded-xl font-semibold text-primary-foreground shadow-glow transition-all duration-200 hover:brightness-110 active:scale-[0.98]"
-          >
-            Sign in
-          </button>
-        </form>
+        <LoginForm />
       </div>
     </main>
   );

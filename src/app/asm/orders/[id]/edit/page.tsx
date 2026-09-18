@@ -83,6 +83,8 @@ export default async function EditOrderPage({
     schemeId: order.schemeId ?? "",
     remarks: order.remarks ?? "",
     paymentMode: order.paymentMode,
+    creditDays: order.creditDays?.toString() ?? "",
+    preferredTransporterId: order.preferredTransporterId ?? "",
     updatedAt: order.updatedAt.toISOString(),
   };
 
@@ -108,9 +110,8 @@ export default async function EditOrderPage({
           flatAmount: s.flatAmount?.toString() ?? null,
         }))}
         config={{
-          maxCombinedPct: rule?.maxCombinedPct.toString() ?? "25",
-          approvalAbovePct: rule?.approvalAbovePct?.toString() ?? "15",
-          allowStacking: rule?.allowStacking ?? true,
+          minDealerPct: rule?.minDealerPct.toString() ?? "45",
+          maxDealerPct: rule?.maxDealerPct.toString() ?? "59",
         }}
       />
     </>

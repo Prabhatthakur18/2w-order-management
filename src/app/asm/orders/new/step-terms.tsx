@@ -1,16 +1,17 @@
 "use client";
 
-import { TriangleAlert } from "lucide-react";
+import { CreditCard, TriangleAlert, Wallet } from "lucide-react";
 import type { OrderDraft } from "@/lib/order-draft";
-import { combinedDiscountPct, type OrderTotals } from "@/lib/pricing";
+import { CASH_DISCOUNT_PCT, dealerDiscountPctNumber, type OrderTotals } from "@/lib/pricing";
 import { Card, Field, Input, Textarea } from "@/components/ui";
 import { Combobox } from "@/components/combobox";
-import { formatINR } from "@/lib/utils";
+import { formatINR, cn } from "@/lib/utils";
 import type { SchemeOption, WizardConfig } from "./types";
 
 /**
- * Module 2 — discount, scheme and remarks, with the Admin-configured cap
- * enforced live (Report Rec #4). Server-side validation repeats this on submit.
+ * Module 2/3 — payment mode, dealer discount, scheme (label only), remarks,
+ * and the resulting order value. GST is intentionally not shown here — this
+ * section is the dealer-facing commercial value before tax.
  */
 export function StepTerms({
   draft,
@@ -25,27 +26,75 @@ export function StepTerms({
   totals: OrderTotals;
   onChange: (patch: Partial<OrderDraft>) => void;
 }) {
-  const combined = combinedDiscountPct(totals);
-  const maxPct = Number(config.maxCombinedPct);
-  const approvalPct = Number(config.approvalAbovePct);
-  const combinedNum = Number(combined.toFixed(2));
+  const minPct = Number(config.minDealerPct);
+  const maxPct = Number(config.maxDealerPct);
+  const discountNum = dealerDiscountPctNumber(draft.dealerDiscountPct);
+  const outOfBand =
+    draft.dealerDiscountPct !== "" &&
+    discountNum > 0 &&
+    (discountNum < minPct || discountNum > maxPct);
 
-  const overCap = combinedNum > maxPct;
-  const needsApproval = !overCap && combinedNum > approvalPct;
-
-  const scheme = schemes.find((s) => s.id === draft.schemeId);
-  const stackingBlocked =
-    !config.allowStacking &&
-    Number(draft.dealerDiscountPct) > 0 &&
-    Boolean(draft.schemeId);
+  const creditDaysNum = Number(draft.creditDays);
+  const creditDaysInvalid =
+    draft.paymentMode === "CREDIT" &&
+    draft.creditDays !== "" &&
+    (creditDaysNum <= 0 || creditDaysNum > 45);
 
   return (
     <div className="space-y-4">
       <Card>
+        <h4 className="mb-3 text-sm font-bold">Payment mode</h4>
+        <div className="grid grid-cols-2 gap-3">
+          <PaymentOption
+            selected={draft.paymentMode === "CREDIT"}
+            onClick={() => onChange({ paymentMode: "CREDIT" })}
+            icon={<CreditCard className="h-5 w-5" />}
+            label="Credit"
+            hint="Credit limit in days"
+          />
+          <PaymentOption
+            selected={draft.paymentMode === "ADVANCE"}
+            onClick={() => onChange({ paymentMode: "ADVANCE" })}
+            icon={<Wallet className="h-5 w-5" />}
+            label="Advance"
+            hint={`${CASH_DISCOUNT_PCT}% cash discount`}
+          />
+        </div>
+
+        {draft.paymentMode === "CREDIT" ? (
+          <div className="mt-3">
+            <Field
+              label="Credit limit (days)"
+              htmlFor="credit-days"
+              required
+              hint="Maximum 45 days."
+              error={
+                creditDaysInvalid
+                  ? "Enter a value between 1 and 45 days."
+                  : undefined
+              }
+            >
+              <Input
+                id="credit-days"
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={45}
+                step={1}
+                placeholder="e.g. 30"
+                value={draft.creditDays}
+                onChange={(e) => onChange({ creditDays: e.target.value })}
+              />
+            </Field>
+          </div>
+        ) : null}
+      </Card>
+
+      <Card>
         <Field
           label="Dealer discount %"
           htmlFor="discount"
-          hint={`Maximum combined discount is ${config.maxCombinedPct}%.`}
+          hint={`Normal range is ${config.minDealerPct}%–${config.maxDealerPct}%.`}
         >
           <Input
             id="discount"
@@ -61,25 +110,9 @@ export function StepTerms({
       </Card>
 
       <Card>
-        <Field
-          label="Scheme"
-          htmlFor="scheme"
-          hint={
-            config.allowStacking
-              ? "Applies on top of the dealer discount."
-              : "Cannot be combined with a dealer discount."
-          }
-        >
+        <Field label="Scheme" htmlFor="scheme" hint="Optional — for reference only.">
           <Combobox
-            options={schemes.map((s) => ({
-              value: s.id,
-              label: s.name,
-              meta: s.discountPct
-                ? `${s.discountPct}%`
-                : s.flatAmount
-                  ? formatINR(s.flatAmount)
-                  : undefined,
-            }))}
+            options={schemes.map((s) => ({ value: s.id, label: s.name }))}
             value={draft.schemeId}
             onChange={(v) => onChange({ schemeId: v })}
             placeholder="No scheme"
@@ -88,27 +121,12 @@ export function StepTerms({
         </Field>
       </Card>
 
-      {stackingBlocked ? (
-        <p className="flex items-start gap-2 rounded-xl bg-destructive/10 p-3 text-xs font-medium text-destructive">
-          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
-          Dealer discount and scheme cannot be applied together. Remove one to
-          continue.
-        </p>
-      ) : null}
-
-      {overCap ? (
-        <p className="flex items-start gap-2 rounded-xl bg-destructive/10 p-3 text-xs font-medium text-destructive">
-          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
-          Combined discount is {combinedNum}%, above the {config.maxCombinedPct}%
-          cap. This order will be rejected on submission.
-        </p>
-      ) : null}
-
-      {needsApproval ? (
+      {outOfBand ? (
         <p className="flex items-start gap-2 rounded-xl bg-warning/10 p-3 text-xs font-medium text-warning">
           <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
-          Combined discount is {combinedNum}%, above the {config.approvalAbovePct}
-          % threshold. Admin approval will be required.
+          {discountNum}% is outside the {config.minDealerPct}%–{config.maxDealerPct}%
+          range. The order will still be created, but will be flagged for
+          Admin approval.
         </p>
       ) : null}
 
@@ -123,7 +141,7 @@ export function StepTerms({
         </Field>
       </Card>
 
-      {/* Live calculation chain — TECH_STACK.md §4B */}
+      {/* Dealer-facing order value — before GST, per business direction. */}
       <Card>
         <h4 className="mb-3 text-sm font-bold">Order value</h4>
         <dl className="space-y-2 text-sm">
@@ -135,28 +153,57 @@ export function StepTerms({
               tone="muted"
             />
           ) : null}
-          {totals.schemeDiscountAmt.gt(0) ? (
+          {totals.cashDiscountAmt.gt(0) ? (
             <Row
-              label={`Scheme${scheme ? ` — ${scheme.name}` : ""}`}
-              value={`− ${formatINR(totals.schemeDiscountAmt.toString())}`}
+              label={`Cash discount (${CASH_DISCOUNT_PCT}%)`}
+              value={`− ${formatINR(totals.cashDiscountAmt.toString())}`}
               tone="muted"
             />
           ) : null}
-          <Row
-            label="Net (before GST)"
-            value={formatINR(totals.net.toString())}
-          />
-          <Row label="GST" value={formatINR(totals.gstAmount.toString())} />
           <div className="border-t border-border pt-2">
             <Row
-              label="Total"
-              value={formatINR(totals.total.toString())}
+              label="Order value"
+              value={formatINR(totals.net.toString())}
               bold
             />
           </div>
         </dl>
       </Card>
     </div>
+  );
+}
+
+function PaymentOption({
+  selected,
+  onClick,
+  icon,
+  label,
+  hint,
+}: {
+  selected: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+  hint: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={selected}
+      className={cn(
+        "flex flex-col items-center gap-1.5 rounded-2xl border p-4 transition-all duration-300 active:scale-95",
+        selected
+          ? "border-primary bg-primary/5 text-primary shadow-sm shadow-primary/10"
+          : "border-border text-muted-foreground hover:bg-muted",
+      )}
+    >
+      {icon}
+      <span className="text-sm font-bold">{label}</span>
+      <span className="text-center text-[10px] uppercase tracking-wider">
+        {hint}
+      </span>
+    </button>
   );
 }
 

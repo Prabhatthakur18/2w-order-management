@@ -4,10 +4,13 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import type { Role } from "@prisma/client";
 import { db } from "@/lib/db";
+import { verifyOtp } from "@/lib/otp";
 
 const credentialsSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
+  otpId: z.string().min(1),
+  otpCode: z.string().min(1),
 });
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -20,12 +23,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
+        otpId: { label: "OTP id", type: "text" },
+        otpCode: { label: "Code", type: "text" },
       },
       async authorize(raw) {
         const parsed = credentialsSchema.safeParse(raw);
         if (!parsed.success) return null;
 
-        const { email, password } = parsed.data;
+        const { email, password, otpId, otpCode } = parsed.data;
 
         const user = await db.user.findUnique({
           where: { email: email.toLowerCase() },
@@ -34,8 +39,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         if (!user || !user.isActive) return null;
 
-        const ok = await bcrypt.compare(password, user.passwordHash);
-        if (!ok) return null;
+        const passwordOk = await bcrypt.compare(password, user.passwordHash);
+        if (!passwordOk) return null;
+
+        // Second factor: the OTP challenge must belong to this same user and
+        // still be valid. The password check above already gates this, but
+        // this is the actual session-issuing boundary, so it is re-checked
+        // here rather than trusted from the earlier request-OTP step.
+        const otp = await db.loginOtp.findUnique({ where: { id: otpId } });
+        if (!otp || otp.userId !== user.id) return null;
+
+        const result = await verifyOtp(otpId, otpCode);
+        if (!result.ok) return null;
 
         await db.user.update({
           where: { id: user.id },

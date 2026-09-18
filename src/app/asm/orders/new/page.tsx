@@ -4,6 +4,7 @@ import {
   getOems,
   getActiveSchemes,
   getDiscountRule,
+  getTransporters,
 } from "@/lib/catalog";
 import { PageHeader } from "@/components/dashboard";
 import { EmptyState, ButtonLink } from "@/components/ui";
@@ -13,10 +14,11 @@ import { OrderWizard } from "./wizard";
 export default async function NewOrderPage() {
   await requireRole(["ASM", "ADMIN"]);
 
-  const [dealers, oems, schemes, rule] = await Promise.all([
+  const [dealers, oems, schemes, transporters, rule] = await Promise.all([
     getDealers(),
     getOems(),
     getActiveSchemes(),
+    getTransporters(),
     getDiscountRule(),
   ]);
 
@@ -57,10 +59,10 @@ export default async function NewOrderPage() {
           discountPct: s.discountPct?.toString() ?? null,
           flatAmount: s.flatAmount?.toString() ?? null,
         }))}
+        transporters={transporters}
         config={{
-          maxCombinedPct: rule?.maxCombinedPct.toString() ?? "25",
-          approvalAbovePct: rule?.approvalAbovePct?.toString() ?? "15",
-          allowStacking: rule?.allowStacking ?? true,
+          minDealerPct: rule?.minDealerPct.toString() ?? "45",
+          maxDealerPct: rule?.maxDealerPct.toString() ?? "59",
         }}
       />
     </>

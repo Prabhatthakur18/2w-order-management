@@ -5,11 +5,16 @@ import { useRouter } from "next/navigation";
 import { FileText, Plus, Trash2, Wallet } from "lucide-react";
 import { Button, Card } from "@/components/ui";
 import { ReceiptUpload } from "@/components/receipt-upload";
-import { formatDate, cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { uploadPaymentReceipt } from "./upload-receipt";
 import { deletePaymentReceipt } from "./delete-receipt";
 
-type ExistingReceipt = { id: string; fileAssetId: string; uploadedAt: Date };
+type ExistingReceipt = {
+  id: string;
+  fileAssetId: string;
+  uploadedAt: Date;
+  fileName: string;
+};
 
 /**
  * Advance-payment orders only — add, replace, and remove payment receipts.
@@ -95,7 +100,7 @@ export function PaymentReceiptCard({
               >
                 <FileText className="h-4 w-4 shrink-0 text-success" />
                 <span className="min-w-0 flex-1 truncate">
-                  Uploaded {formatDate(r.uploadedAt)}
+                  {r.fileName}
                 </span>
               </a>
 

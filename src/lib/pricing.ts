@@ -2,17 +2,25 @@ import Decimal from "decimal.js";
 import type { OrderLineDraft } from "@/lib/order-draft";
 
 /**
- * Pricing engine — TECH_STACK.md §4B.
+ * Pricing engine.
  *
- *   Unit Price x Qty          = Gross
- *   - Dealer Discount
- *   - Scheme Discount         = Net (before GST)
- *   + GST (per-item slab)     = Total
+ *   Unit Price x Qty              = Gross
+ *   - Dealer Discount (per line)
+ *   - Cash Discount 4% (Advance only, per line, on the post-dealer-discount
+ *     value)                      = Net (before GST)
+ *   + GST (per-item slab)         = Total
+ *
+ * Scheme is a selectable label only — it has no effect on cost (business
+ * direction). It is still recorded on the order for reference.
  *
  * Rules:
  *  - Decimal throughout; never a JS float.
  *  - Rounding applied once at line level, then summed. Never rounded twice.
+ *  - The dealer discount is applied identically per line — there is no
+ *    order-level "combined discount" concept anymore.
  */
+
+export const CASH_DISCOUNT_PCT = "4";
 
 const MONEY_DP = 2;
 
@@ -22,8 +30,11 @@ function money(v: Decimal): Decimal {
 
 export type LineTotals = {
   key: string;
+  /** Per-unit price after the dealer discount — what the PI prints as "Rate". */
+  rate: Decimal;
   gross: Decimal;
   discountAmt: Decimal;
+  cashDiscountAmt: Decimal;
   net: Decimal;
   gstAmount: Decimal;
   total: Decimal;
@@ -34,76 +45,76 @@ export type OrderTotals = {
   totalQty: number;
   gross: Decimal;
   dealerDiscountAmt: Decimal;
-  schemeDiscountAmt: Decimal;
+  cashDiscountAmt: Decimal;
   net: Decimal;
   gstAmount: Decimal;
   total: Decimal;
 };
 
-export type DiscountInput = {
+export type PricingInput = {
   dealerDiscountPct: string;
-  schemeDiscountPct?: string;
-  schemeFlatAmount?: string;
+  /** Advance payment applies the 4% cash discount per line; Credit does not. */
+  paymentMode: "CREDIT" | "ADVANCE" | null;
 };
 
 /**
- * Discounts apply proportionally across lines so each line's GST is computed
- * on its own discounted value — GST slabs differ per item, so discounting the
- * order total and taxing afterwards would produce the wrong tax.
+ * Per-unit price after the dealer discount — the "Rate" printed on the
+ * Proforma Invoice. The dealer discount never appears on that document; it
+ * is folded into this figure instead, so the only visible discount there is
+ * the cash discount.
+ *
+ * Exported because two callers need it from different sources: the PI reads
+ * persisted OrderLine rows, the review step reads live draft lines.
  */
+export function discountedRate(
+  unitPrice: string | number | null | undefined,
+  dealerDiscountPct: string | number | null | undefined,
+): Decimal {
+  const price = safeDecimal(unitPrice);
+  const pct = safeDecimal(dealerDiscountPct);
+  return money(price.sub(price.mul(pct).div(100)));
+}
+
 export function calculateOrder(
   lines: OrderLineDraft[],
-  discounts: DiscountInput,
+  input: PricingInput,
 ): OrderTotals {
-  const dealerPct = safeDecimal(discounts.dealerDiscountPct);
-  const schemePct = safeDecimal(discounts.schemeDiscountPct ?? "0");
-  const schemeFlat = safeDecimal(discounts.schemeFlatAmount ?? "0");
-
-  // Gross first — needed to apportion any flat scheme amount.
-  const grossByLine = lines.map((l) =>
-    money(safeDecimal(l.unitPrice).mul(new Decimal(l.qty))),
-  );
-  const grossTotal = grossByLine.reduce(
-    (a, b) => a.add(b),
-    new Decimal(0),
-  );
+  const dealerPct = safeDecimal(input.dealerDiscountPct);
+  const cashPct = input.paymentMode === "ADVANCE" ? safeDecimal(CASH_DISCOUNT_PCT) : new Decimal(0);
 
   const lineTotals: LineTotals[] = [];
   let dealerDiscountTotal = new Decimal(0);
-  let schemeDiscountTotal = new Decimal(0);
+  let cashDiscountTotal = new Decimal(0);
 
-  lines.forEach((line, i) => {
-    const gross = grossByLine[i];
+  lines.forEach((line) => {
+    const gross = money(safeDecimal(line.unitPrice).mul(new Decimal(line.qty)));
 
     const dealerCut = money(gross.mul(dealerPct).div(100));
-
-    // Percentage scheme applies to the post-dealer-discount value.
     const afterDealer = gross.sub(dealerCut);
-    let schemeCut = money(afterDealer.mul(schemePct).div(100));
 
-    // Flat scheme amount is shared out in proportion to line value.
-    if (schemeFlat.gt(0) && grossTotal.gt(0)) {
-      const share = money(schemeFlat.mul(gross).div(grossTotal));
-      schemeCut = schemeCut.add(share);
-    }
+    // Cash discount is 4% of the post-dealer-discount value, per line.
+    const cashCut = money(afterDealer.mul(cashPct).div(100));
 
-    const discountAmt = dealerCut.add(schemeCut);
+    const discountAmt = dealerCut.add(cashCut);
     const net = money(Decimal.max(gross.sub(discountAmt), new Decimal(0)));
     const gstAmount = money(net.mul(safeDecimal(line.gstRatePct)).div(100));
 
     dealerDiscountTotal = dealerDiscountTotal.add(dealerCut);
-    schemeDiscountTotal = schemeDiscountTotal.add(schemeCut);
+    cashDiscountTotal = cashDiscountTotal.add(cashCut);
 
     lineTotals.push({
       key: line.key,
+      rate: discountedRate(line.unitPrice, input.dealerDiscountPct),
       gross,
-      discountAmt,
+      discountAmt: dealerCut,
+      cashDiscountAmt: cashCut,
       net,
       gstAmount,
       total: net.add(gstAmount),
     });
   });
 
+  const gross = lineTotals.reduce((a, l) => a.add(l.gross), new Decimal(0));
   const net = lineTotals.reduce((a, l) => a.add(l.net), new Decimal(0));
   const gstAmount = lineTotals.reduce(
     (a, l) => a.add(l.gstAmount),
@@ -113,9 +124,9 @@ export function calculateOrder(
   return {
     lines: lineTotals,
     totalQty: lines.reduce((a, l) => a + l.qty, 0),
-    gross: grossTotal,
+    gross,
     dealerDiscountAmt: dealerDiscountTotal,
-    schemeDiscountAmt: schemeDiscountTotal,
+    cashDiscountAmt: cashDiscountTotal,
     net,
     gstAmount,
     total: net.add(gstAmount),
@@ -132,13 +143,10 @@ function safeDecimal(v: string | number | null | undefined): Decimal {
   }
 }
 
-/** Combined discount %, used against the Admin-configured cap. */
-export function combinedDiscountPct(totals: OrderTotals): Decimal {
-  if (totals.gross.lte(0)) return new Decimal(0);
-  return totals.dealerDiscountAmt
-    .add(totals.schemeDiscountAmt)
-    .mul(100)
-    .div(totals.gross);
+/** Dealer discount % as a plain number, checked against the Admin band. */
+export function dealerDiscountPctNumber(pct: string): number {
+  const d = safeDecimal(pct);
+  return Number(d.toFixed(2));
 }
 
 export { Decimal };

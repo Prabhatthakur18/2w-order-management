@@ -2,19 +2,21 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, CreditCard, Loader2, TriangleAlert, Wallet } from "lucide-react";
+import { CheckCircle2, Loader2, TriangleAlert, Truck } from "lucide-react";
 import type { OrderDraft } from "@/lib/order-draft";
-import type { OrderTotals } from "@/lib/pricing";
+import { CASH_DISCOUNT_PCT, type OrderTotals } from "@/lib/pricing";
 import { Button, Card } from "@/components/ui";
-import { formatINR, cn } from "@/lib/utils";
+import { Combobox } from "@/components/combobox";
+import { formatINR } from "@/lib/utils";
 import { createOrder } from "./create-order";
-import type { DealerOption, SchemeOption } from "./types";
+import type { DealerOption, SchemeOption, TransporterOption } from "./types";
 
-/** Module 3 — payment mode, final review and order creation. */
+/** Final review: preferred transportation, full breakdown, and submission. */
 export function StepReview({
   draft,
   dealers,
   schemes,
+  transporters,
   totals,
   onChange,
   onSubmitted,
@@ -22,6 +24,7 @@ export function StepReview({
   draft: OrderDraft;
   dealers: DealerOption[];
   schemes: SchemeOption[];
+  transporters: TransporterOption[];
   totals: OrderTotals;
   onChange: (patch: Partial<OrderDraft>) => void;
   onSubmitted: () => void;
@@ -49,31 +52,19 @@ export function StepReview({
   return (
     <div className="space-y-4">
       <Card>
-        <h4 className="mb-3 text-sm font-bold">Payment mode</h4>
-        <div className="grid grid-cols-2 gap-3">
-          <PaymentOption
-            selected={draft.paymentMode === "CREDIT"}
-            onClick={() => onChange({ paymentMode: "CREDIT" })}
-            icon={<CreditCard className="h-5 w-5" />}
-            label="Credit"
-            hint={
-              dealer?.creditDays ? `${dealer.creditDays} days` : "On account"
-            }
-          />
-          <PaymentOption
-            selected={draft.paymentMode === "ADVANCE"}
-            onClick={() => onChange({ paymentMode: "ADVANCE" })}
-            icon={<Wallet className="h-5 w-5" />}
-            label="Advance"
-            hint="Paid upfront"
-          />
-        </div>
-      </Card>
-
-      <Card>
         <h4 className="mb-3 text-sm font-bold">Summary</h4>
         <dl className="space-y-2 text-sm">
           <SummaryRow label="Dealer" value={dealer?.name ?? "—"} />
+          <SummaryRow
+            label="Payment"
+            value={
+              draft.paymentMode === "CREDIT"
+                ? `Credit — ${draft.creditDays || "—"} days`
+                : draft.paymentMode === "ADVANCE"
+                  ? `Advance (${CASH_DISCOUNT_PCT}% cash discount)`
+                  : "—"
+            }
+          />
           <SummaryRow
             label="Shipping"
             value={
@@ -84,10 +75,26 @@ export function StepReview({
           />
           <SummaryRow label="Items" value={String(draft.lines.length)} />
           <SummaryRow label="Units" value={String(totals.totalQty)} />
-          {scheme ? (
-            <SummaryRow label="Scheme" value={scheme.name} />
-          ) : null}
+          {scheme ? <SummaryRow label="Scheme" value={scheme.name} /> : null}
         </dl>
+      </Card>
+
+      <Card>
+        <div className="mb-3 flex items-center gap-2">
+          <Truck className="h-4 w-4 text-muted-foreground" />
+          <h4 className="text-sm font-bold">Preferred transportation</h4>
+        </div>
+        <Combobox
+          options={transporters.map((t) => ({
+            value: t.id,
+            label: t.name,
+            meta: t.code,
+          }))}
+          value={draft.preferredTransporterId}
+          onChange={(v) => onChange({ preferredTransporterId: v })}
+          placeholder="Select a transporter"
+          searchPlaceholder="Search transporters…"
+        />
       </Card>
 
       <Card>
@@ -102,8 +109,11 @@ export function StepReview({
                 <p className="truncate text-sm font-medium">
                   {l.partNo} — {l.colour}
                 </p>
+                {/* Rate, not MRP — the dealer discount is folded in, matching
+                    what the Proforma Invoice prints. */}
                 <p className="text-xs text-muted-foreground">
-                  {l.qty} {l.packingUnit} × {formatINR(l.unitPrice)}
+                  {l.qty} {l.packingUnit} ×{" "}
+                  {formatINR(totals.lines[i]?.rate.toString() ?? l.unitPrice)}
                 </p>
                 {l.remarks ? (
                   <p className="mt-1 rounded-lg bg-muted/60 px-2 py-1 text-xs italic text-muted-foreground">
@@ -131,10 +141,10 @@ export function StepReview({
               value={`− ${formatINR(totals.dealerDiscountAmt.toString())}`}
             />
           ) : null}
-          {totals.schemeDiscountAmt.gt(0) ? (
+          {totals.cashDiscountAmt.gt(0) ? (
             <SummaryRow
-              label="Scheme discount"
-              value={`− ${formatINR(totals.schemeDiscountAmt.toString())}`}
+              label={`Cash discount (${CASH_DISCOUNT_PCT}%)`}
+              value={`− ${formatINR(totals.cashDiscountAmt.toString())}`}
             />
           ) : null}
           <SummaryRow
@@ -188,38 +198,6 @@ export function StepReview({
         the next phase.
       </p>
     </div>
-  );
-}
-
-function PaymentOption({
-  selected,
-  onClick,
-  icon,
-  label,
-  hint,
-}: {
-  selected: boolean;
-  onClick: () => void;
-  icon: React.ReactNode;
-  label: string;
-  hint: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={selected}
-      className={cn(
-        "flex flex-col items-center gap-1.5 rounded-2xl border p-4 transition-all duration-300 active:scale-95",
-        selected
-          ? "border-primary bg-primary/5 text-primary shadow-sm shadow-primary/10"
-          : "border-border text-muted-foreground hover:bg-muted",
-      )}
-    >
-      {icon}
-      <span className="text-sm font-bold">{label}</span>
-      <span className="text-[10px] uppercase tracking-wider">{hint}</span>
-    </button>
   );
 }
 

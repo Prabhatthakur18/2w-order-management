@@ -39,13 +39,22 @@ model User {
 
   // A DEALER-role user is linked to the dealer they represent.
   dealerId String?
-  dealer   Dealer? @relation(fields: [dealerId], references: [id])
+  dealer   Dealer? @relation("DealerPortalUser", fields: [dealerId], references: [id])
 
   createdOrders  Order[]           @relation("OrderCreatedBy")
   auditLogs      AuditLog[]
   notifications  Notification[]
   documentIssues DocumentIssueLog[]
   uploadedFiles  FileAsset[]
+
+  dealersCreated     Dealer[]    @relation("DealerCreatedBy")
+  dealersReviewed    Dealer[]    @relation("DealerReviewedBy")
+  subDealersCreated  SubDealer[] @relation("SubDealerCreatedBy")
+  subDealersReviewed SubDealer[] @relation("SubDealerReviewedBy")
+  loginOtps          LoginOtp[]
+
+  ekycProfilesCreated  EkycProfile[] @relation("EkycProfileCreatedBy")
+  ekycProfilesReviewed EkycProfile[] @relation("EkycProfileReviewedBy")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -68,6 +77,15 @@ model UserRole {
 // ADMIN-CONTROLLED MASTERS
 // ─────────────────────────────────────────────────────────────
 
+// Any dealer/sub-dealer added by an ASM starts PENDING and is invisible to
+// order creation until an Admin approves it. Admin-seeded masters are
+// created directly as APPROVED.
+enum MasterApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model Dealer {
   id          String  @id @default(cuid())
   code        String  @unique
@@ -82,6 +100,21 @@ model Dealer {
   email       String?
   isActive    Boolean @default(true)
 
+  // GST-lookup fields, kept as returned by the provider for reference —
+  // the ASM-editable fields above are the source of truth for the order.
+  gstLegalName    String?
+  gstTradeName    String?
+  gstStatus       String?
+  gstRegisteredAt DateTime?
+
+  approvalStatus MasterApprovalStatus @default(APPROVED)
+  createdById    String?
+  createdBy      User?          @relation("DealerCreatedBy", fields: [createdById], references: [id])
+  reviewedById   String?
+  reviewedBy     User?          @relation("DealerReviewedBy", fields: [reviewedById], references: [id])
+  reviewedAt     DateTime?
+  rejectedReason String?
+
   // Credit terms — Admin controlled
   creditLimit    Decimal? @db.Decimal(14, 2)
   creditDays     Int?
@@ -91,14 +124,16 @@ model Dealer {
   subDealers          SubDealer[]
   printingFrames      PrintingFrame[]
   orders              Order[]
-  users               User[]
+  users               User[] @relation("DealerPortalUser")
   dealerNotifications DealerNotification[]
+  ekycProfile         EkycProfile?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([code])
   @@index([isActive])
+  @@index([approvalStatus])
 }
 
 // Report Rec #1 — replaces free-text sub-dealer entry.
@@ -107,6 +142,7 @@ model SubDealer {
   dealerId  String
   dealer    Dealer  @relation(fields: [dealerId], references: [id], onDelete: Cascade)
   name      String
+  gstin     String?
   address   String
   city      String?
   state     String?
@@ -115,28 +151,116 @@ model SubDealer {
   email     String?
   isActive  Boolean @default(true)
 
-  // Set when an ASM creates one inline; Admin reviews later.
-  isVerified Boolean @default(false)
+  // GST-lookup fields, kept as returned by the provider for reference —
+  // the ASM-editable fields above are the source of truth for the order.
+  gstLegalName    String?
+  gstTradeName    String?
+  gstStatus       String?
+  gstRegisteredAt DateTime?
 
-  orders Order[]
+  approvalStatus MasterApprovalStatus @default(APPROVED)
+  createdById    String?
+  createdBy      User?          @relation("SubDealerCreatedBy", fields: [createdById], references: [id])
+  reviewedById   String?
+  reviewedBy     User?          @relation("SubDealerReviewedBy", fields: [reviewedById], references: [id])
+  reviewedAt     DateTime?
+  rejectedReason String?
+
+  orders      Order[]
+  ekycProfile EkycProfile?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([dealerId])
   @@index([name])
+  @@index([approvalStatus])
 }
 
-// Report Rec #2 — artwork stored once per dealer, reused across orders.
-model PrintingFrame {
-  id          String  @id @default(cuid())
-  dealerId    String
-  dealer      Dealer  @relation(fields: [dealerId], references: [id], onDelete: Cascade)
-  label       String
+// eKYC — independent of Dealer/SubDealer approvalStatus above (which
+// already governs order-usability on its own). One profile per dealer OR
+// per sub-dealer (never both), created lazily on first document upload.
+// One file per EkycDocType; re-uploading replaces the existing file.
+enum EkycDocType {
+  AADHAR
+  PAN
+  CANCELLED_CHEQUE
+  MOU
+}
+
+model EkycProfile {
+  id String @id @default(cuid())
+
+  dealerId    String?
+  dealer      Dealer?    @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  subDealerId String?
+  subDealer   SubDealer? @relation(fields: [subDealerId], references: [id], onDelete: Cascade)
+
+  approvalStatus MasterApprovalStatus @default(PENDING)
+  createdById    String?
+  createdBy      User?     @relation("EkycProfileCreatedBy", fields: [createdById], references: [id])
+  reviewedById   String?
+  reviewedBy     User?     @relation("EkycProfileReviewedBy", fields: [reviewedById], references: [id])
+  reviewedAt     DateTime?
+  rejectedReason String?
+
+  // Manual note the ASM writes for the MoU slot.
+  mouNote String?
+
+  documents EkycDocument[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([dealerId])
+  @@unique([subDealerId])
+  @@index([approvalStatus])
+}
+
+model EkycDocument {
+  id            String      @id @default(cuid())
+  ekycProfileId String
+  ekycProfile   EkycProfile @relation(fields: [ekycProfileId], references: [id], onDelete: Cascade)
+  docType       EkycDocType
+
   fileAssetId String
   fileAsset   FileAsset @relation(fields: [fileAssetId], references: [id])
-  isDefault   Boolean @default(false)
-  isActive    Boolean @default(true)
+
+  uploadedById String?
+  uploadedAt   DateTime @default(now())
+
+  @@unique([ekycProfileId, docType])
+}
+
+enum PrintingFrameMode {
+  IMAGE
+  CONTENT
+}
+
+// Report Rec #2 — artwork (or text content) stored once per dealer, reused
+// across orders. Two modes: an uploaded image, or typed content with a
+// language and an OEM-logo toggle. Exactly one of fileAssetId/contentText
+// is set, matching mode.
+model PrintingFrame {
+  id   String            @id @default(cuid())
+  mode PrintingFrameMode @default(IMAGE)
+
+  dealerId String
+  dealer   Dealer @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  label    String
+
+  // IMAGE mode
+  fileAssetId String?
+  fileAsset   FileAsset? @relation(fields: [fileAssetId], references: [id])
+
+  // CONTENT mode — language is a BCP-47 tag (e.g. "en", "hi"), resolved to a
+  // display name client-side via Intl.DisplayNames — no language master needed.
+  contentText     String?
+  contentLanguage String?
+  withOemLogo     Boolean?
+
+  isDefault Boolean @default(false)
+  isActive  Boolean @default(true)
 
   orders Order[]
 
@@ -281,15 +405,15 @@ model PriceList {
 }
 
 // Report Rec #4 — caps and stacking rules, Admin controlled.
+// Dealer discount must sit within [minDealerPct, maxDealerPct]. The order is
+// never rejected for being outside the band — it is flagged so an Admin
+// must approve it (Order.needsDiscountApproval), per business direction.
 model DiscountRule {
-  id              String  @id @default(cuid())
-  name            String
-  maxDealerPct    Decimal @db.Decimal(5, 2)
-  maxSchemePct    Decimal @db.Decimal(5, 2)
-  maxCombinedPct  Decimal @db.Decimal(5, 2)
-  allowStacking   Boolean @default(true)
-  approvalAbovePct Decimal? @db.Decimal(5, 2)
-  isActive        Boolean @default(true)
+  id           String  @id @default(cuid())
+  name         String
+  minDealerPct Decimal @db.Decimal(5, 2)
+  maxDealerPct Decimal @db.Decimal(5, 2)
+  isActive     Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -323,7 +447,8 @@ model Transporter {
   gstin     String?
   isActive  Boolean @default(true)
 
-  dispatches Dispatch[]
+  dispatches      Dispatch[]
+  preferredOrders Order[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -384,6 +509,9 @@ model Order {
   printingFrameId String?
   printingFrame   PrintingFrame? @relation(fields: [printingFrameId], references: [id])
 
+  preferredTransporterId String?
+  preferredTransporter   Transporter? @relation(fields: [preferredTransporterId], references: [id])
+
   // Module 1 — shipping
   shippingSameAsDealer Boolean @default(true)
   shippingAddress      String?
@@ -396,14 +524,27 @@ model Order {
   grossValue        Decimal  @db.Decimal(14, 2) @default(0)
   dealerDiscountPct Decimal? @db.Decimal(5, 2)
   dealerDiscountAmt Decimal  @db.Decimal(14, 2) @default(0)
+  // Dealer discount fell outside [DiscountRule.minDealerPct, maxDealerPct] —
+  // order proceeds, but an Admin must approve it. Not a rejection.
+  needsDiscountApproval Boolean @default(false)
+
+  // Scheme is a selectable label only — no cost effect (business direction).
   schemeId          String?
   scheme            Scheme?  @relation(fields: [schemeId], references: [id])
   schemeDiscountAmt Decimal  @db.Decimal(14, 2) @default(0)
+
   netValue          Decimal  @db.Decimal(14, 2) @default(0) // before GST
   gstAmount         Decimal  @db.Decimal(14, 2) @default(0)
   totalValue        Decimal  @db.Decimal(14, 2) @default(0)
+  // Advance payment only: 4% of the post-dealer-discount line value,
+  // computed per line then summed (see OrderLine.cashDiscountAmt).
   cashDiscountAmt   Decimal  @db.Decimal(14, 2) @default(0)
   finalPayable      Decimal  @db.Decimal(14, 2) @default(0)
+
+  // Credit payment only: ASM-entered term for this order, max 45 days,
+  // termed "Credit Limit (days)" in the UI. Independent of Dealer.creditDays,
+  // which is the dealer's general master default.
+  creditDays Int?
 
   remarks String?
 
@@ -460,6 +601,9 @@ model OrderLine {
   lineGross     Decimal @db.Decimal(14, 2)
   discountPct   Decimal @db.Decimal(5, 2) @default(0)
   discountAmt   Decimal @db.Decimal(14, 2) @default(0)
+  // Advance payment only: 4% of (lineGross - discountAmt), i.e. the
+  // post-dealer-discount value. Zero for Credit orders.
+  cashDiscountAmt Decimal @db.Decimal(14, 2) @default(0)
   gstRatePct    Decimal @db.Decimal(5, 2) @default(0)
   gstAmount     Decimal @db.Decimal(14, 2) @default(0)
   lineNet       Decimal @db.Decimal(14, 2)
@@ -736,6 +880,7 @@ model FileAsset {
   printingFrames PrintingFrame[]
   receipts       PaymentReceipt[]
   invoices       Invoice[]
+  ekycDocuments  EkycDocument[]
 
   createdAt DateTime @default(now())
 
@@ -823,4 +968,27 @@ model DealerNotification {
 enum ExternalNotifyChannel {
   EMAIL
   WHATSAPP
+}
+
+/**
+ * Login OTP challenge — a second factor after the password check succeeds.
+ *
+ * Delivery is a stub today: the code is logged server-side (see
+ * src/lib/otp.ts) instead of actually sent by email/WhatsApp, since no
+ * provider is chosen yet. Swapping in a real provider only changes where
+ * the code is sent, not this model or the verify flow.
+ */
+model LoginOtp {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String
+  channel   ExternalNotifyChannel
+  expiresAt DateTime
+  consumedAt DateTime?
+  attempts  Int      @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, expiresAt])
 }

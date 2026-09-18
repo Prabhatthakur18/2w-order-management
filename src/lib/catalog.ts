@@ -9,9 +9,13 @@ import { db } from "@/lib/db";
  * unfiltered list can never be returned.
  */
 
+/**
+ * Dealers usable for order creation. A PENDING dealer (added by an ASM,
+ * awaiting Admin approval) must never appear here — only APPROVED ones do.
+ */
 export async function getDealers() {
   return db.dealer.findMany({
-    where: { isActive: true },
+    where: { isActive: true, approvalStatus: "APPROVED" },
     orderBy: { name: "asc" },
     select: {
       id: true,
@@ -21,17 +25,31 @@ export async function getDealers() {
       city: true,
       state: true,
       pincode: true,
+      contactName: true,
       contactNo: true,
+      gstin: true,
       creditLimit: true,
       creditDays: true,
     },
   });
 }
 
+export async function getTransporters() {
+  return db.transporter.findMany({
+    where: { isActive: true },
+    orderBy: { name: "asc" },
+    select: { id: true, code: true, name: true },
+  });
+}
+
 export async function getDealer(dealerId: string) {
   return db.dealer.findFirst({
-    where: { id: dealerId, isActive: true },
+    where: { id: dealerId, isActive: true, approvalStatus: "APPROVED" },
     include: {
+      // A dealer's sub-dealers may still include PENDING ones so the ASM
+      // can see what they've submitted, but order creation must not offer
+      // an unapproved sub-dealer as a selectable option — the wizard filters
+      // these client-side to APPROVED before rendering the picker.
       subDealers: {
         where: { isActive: true },
         orderBy: { name: "asc" },
