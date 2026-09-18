@@ -12,53 +12,98 @@ Mobile-first: the ASM places orders from a phone in the field.
 
 ## Running it
 
+Once set up, this is the whole thing:
+
 ```bash
 npm run dev
 ```
 
-Open **http://localhost:3100**. That is the whole thing — one command.
+Open **http://localhost:3100**.
 
-The database is the PostgreSQL 17 already running as a Windows service, so there is nothing to start and nothing to remember after a reboot.
+First time on this machine? See [Setup from a fresh clone](#setup-from-a-fresh-clone) below.
 
-## Setup
+## Setup from a fresh clone
 
-### 1. Database
+You need **Node.js 22.x LTS** (22.12.0 is what the project is developed against)
+and **PostgreSQL 17** running locally.
 
-**Already created and seeded** — database `twom_dev` on `localhost:5432`, alongside the existing `autoform_mis` database, which is untouched.
+### 1. Install dependencies
 
-<details>
-<summary>How it was set up (for reference / rebuilding)</summary>
+```bash
+npm install
+```
+
+### 2. Create the database
+
+Connect as the `postgres` superuser and create the role and database:
 
 ```sql
 CREATE ROLE twom LOGIN PASSWORD 'twom' CREATEDB;
 CREATE DATABASE twom_dev OWNER twom;
 ```
 
-Run as the `postgres` superuser via
+On Windows that connection is
 `"C:\Program Files\PostgreSQL\17\bin\psql.exe" -U postgres -h 127.0.0.1`.
-</details>
+On macOS or Linux, `psql -U postgres -h 127.0.0.1`.
 
-### 2. Environment
+Use a different password if you like — just match it in `DATABASE_URL` below.
 
-`.env` already exists with a generated `AUTH_SECRET`. For a fresh clone:
+### 3. Environment
 
 ```bash
 cp .env.example .env
-npx auth secret        # writes AUTH_SECRET
+npx auth secret        # generates AUTH_SECRET into .env
 ```
 
-### 3. Schema and seed
+Then open `.env` and set:
 
-Already applied. To rebuild:
+| Variable | What to put |
+|---|---|
+| `DATABASE_URL` | `postgresql://twom:twom@localhost:5432/twom_dev?schema=public` — match the password you used above |
+| `AUTH_SECRET` | written for you by `npx auth secret` |
+| `AUTH_TRUST_HOST` | `true` |
+| `UPLOAD_ROOT` | `./.uploads` for local dev. Must sit outside the web root |
+| `MAX_UPLOAD_MB` | `8` |
+| `GSTINCHECK_API_KEY` | Ask Prabhat. Only needed to test GSTIN auto-fill — the rest of the app runs without it |
+
+`.env` is gitignored and must stay that way. Never commit it.
+
+### 4. Schema and seed
+
+There is no migrations directory yet — the project uses `db:push`.
 
 ```bash
-npm install
-npm run db:push        # create tables
+npm run db:push        # create tables from prisma/schema.prisma
 npm run db:seed        # users + business rules
 npm run db:seed:demo   # demo catalog (placeholder data)
 ```
 
-Port 3100, not 3000 — another local project already uses 3000.
+### 5. Run it
+
+```bash
+npm run dev
+```
+
+Open **http://localhost:3100**. Port 3100, not 3000 — another local project
+already uses 3000.
+
+### Before you push
+
+```bash
+npm run typecheck
+npm run test
+npm run lint
+```
+
+<details>
+<summary>Note for the original dev machine</summary>
+
+On Prabhat's machine all of the above is already done: `twom_dev` exists on
+`localhost:5432` alongside the `autoform_mis` database (untouched), `.env`
+exists with a generated `AUTH_SECRET`, and the schema is pushed and seeded.
+PostgreSQL 17 runs as a Windows service, so there is nothing to start after a
+reboot. `npm run dev` is the whole thing.
+</details>
 
 ## Demo logins
 
@@ -74,6 +119,19 @@ Password for all: `Passw0rd!`
 
 Dealer logins are seeded off — see TECH_STACK.md §2.
 
+### OTP login
+
+The login page also offers an OTP flow. **No email/WhatsApp provider is wired up
+yet**, so the code is not actually sent — it is printed to the terminal running
+`npm run dev`:
+
+```
+[OTP STUB] EMAIL to asm@autoformindia.com: 123456 (expires in 10m)
+```
+
+Copy it from there. Swapping in a real provider means changing only the delivery
+step in [src/lib/otp.ts](src/lib/otp.ts) — the schema and flow stay as they are.
+
 ## Scripts
 
 | Command | Purpose |
@@ -82,6 +140,8 @@ Dealer logins are seeded off — see TECH_STACK.md §2.
 | `npm run build` | Production build |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run lint` | ESLint |
+| `npm run test` | All unit tests (pricing, number-to-words, storage, lifecycle) |
+| `npm run db:generate` | Regenerate the Prisma client |
 | `npm run db:push` | Sync schema without a migration |
 | `npm run db:migrate` | Create a migration |
 | `npm run db:studio` | Prisma Studio |
