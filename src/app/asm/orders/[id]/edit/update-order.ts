@@ -6,7 +6,11 @@ import { requireRole } from "@/lib/guard";
 import { db } from "@/lib/db";
 import { orderDraftSchema, type OrderLineDraft } from "@/lib/order-draft";
 import { calculateOrder, dealerDiscountPctNumber } from "@/lib/pricing";
-import { getCurrentPrice, getDiscountRule } from "@/lib/catalog";
+import {
+  getCurrentPrice,
+  getDiscountRule,
+  resolveOrderParties,
+} from "@/lib/catalog";
 import { isEditable } from "@/lib/order-lifecycle";
 
 export type UpdateOrderResult =
@@ -68,10 +72,14 @@ export async function updateOrder(
     creditDays = days;
   }
 
-  const dealer = await db.dealer.findFirst({
-    where: { id: draft.dealerId, isActive: true },
+  const parties = await resolveOrderParties({
+    dealerId: draft.dealerId,
+    subDealerId: draft.subDealerId,
+    printingFrameId: draft.printingFrameId,
+    preferredTransporterId: draft.preferredTransporterId,
   });
-  if (!dealer) return { ok: false, error: "That dealer is not available." };
+  if (!parties.ok) return { ok: false, error: parties.error };
+  const { dealer } = parties;
 
   const pricedLines: (OrderLineDraft & { packingUnit: PackingUnit })[] = [];
   for (const line of draft.lines) {

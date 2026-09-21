@@ -6,7 +6,11 @@ import { db } from "@/lib/db";
 import type { PackingUnit } from "@prisma/client";
 import { orderDraftSchema, type OrderLineDraft } from "@/lib/order-draft";
 import { calculateOrder, dealerDiscountPctNumber } from "@/lib/pricing";
-import { getCurrentPrice, getDiscountRule } from "@/lib/catalog";
+import {
+  getCurrentPrice,
+  getDiscountRule,
+  resolveOrderParties,
+} from "@/lib/catalog";
 import {
   allocateDocNumber,
   editDeadline,
@@ -53,20 +57,14 @@ export async function createOrder(
     creditDays = days;
   }
 
-  const dealer = await db.dealer.findFirst({
-    where: { id: draft.dealerId, isActive: true },
+  const parties = await resolveOrderParties({
+    dealerId: draft.dealerId,
+    subDealerId: draft.subDealerId,
+    printingFrameId: draft.printingFrameId,
+    preferredTransporterId: draft.preferredTransporterId,
   });
-  if (!dealer) return { ok: false, error: "That dealer is not available." };
-
-  if (draft.preferredTransporterId) {
-    const transporter = await db.transporter.findFirst({
-      where: { id: draft.preferredTransporterId, isActive: true },
-      select: { id: true },
-    });
-    if (!transporter) {
-      return { ok: false, error: "That transporter is not available." };
-    }
-  }
+  if (!parties.ok) return { ok: false, error: parties.error };
+  const { dealer } = parties;
 
   // Re-resolve every price server-side. A stale or tampered client price
   // must never reach the order.
