@@ -157,3 +157,72 @@ export async function getConfig(keys: string[]) {
   });
   return Object.fromEntries(rows.map((r) => [r.key, r.value]));
 }
+
+export type OrderPartiesInput = {
+  dealerId: string;
+  subDealerId?: string | null;
+  printingFrameId?: string | null;
+  preferredTransporterId?: string | null;
+};
+
+/**
+ * Resolves and validates every party an order points at.
+ *
+ * The wizard already narrows these lists — getDealers() above, and the
+ * APPROVED sub-dealer filter in asm/orders/new/actions.ts — but that is the
+ * *client's* view of what is selectable. This is the server-side equivalent,
+ * so a crafted payload cannot attach an unapproved dealer, or a sub-dealer or
+ * printing frame belonging to some other dealer.
+ *
+ * Ownership is the check that matters for the dealer-owned records: without
+ * it an order could carry a different dealer's name and address onto the PI.
+ * Sub-dealer approval status is deliberately NOT required — the wizard can
+ * create a sub-dealer inline, which lands PENDING and is legitimately
+ * attached to that same order while it waits for Admin review.
+ */
+export async function resolveOrderParties(input: OrderPartiesInput) {
+  const dealer = await db.dealer.findFirst({
+    where: { id: input.dealerId, isActive: true, approvalStatus: "APPROVED" },
+  });
+  if (!dealer) {
+    return { ok: false as const, error: "That dealer is not available." };
+  }
+
+  if (input.subDealerId) {
+    const subDealer = await db.subDealer.findFirst({
+      where: { id: input.subDealerId, dealerId: dealer.id, isActive: true },
+      select: { id: true },
+    });
+    if (!subDealer) {
+      return {
+        ok: false as const,
+        error: "That sub-dealer does not belong to this dealer.",
+      };
+    }
+  }
+
+  if (input.printingFrameId) {
+    const frame = await db.printingFrame.findFirst({
+      where: { id: input.printingFrameId, dealerId: dealer.id, isActive: true },
+      select: { id: true },
+    });
+    if (!frame) {
+      return {
+        ok: false as const,
+        error: "That printing frame does not belong to this dealer.",
+      };
+    }
+  }
+
+  if (input.preferredTransporterId) {
+    const transporter = await db.transporter.findFirst({
+      where: { id: input.preferredTransporterId, isActive: true },
+      select: { id: true },
+    });
+    if (!transporter) {
+      return { ok: false as const, error: "That transporter is not available." };
+    }
+  }
+
+  return { ok: true as const, dealer };
+}
