@@ -70,13 +70,19 @@ Then open `.env` and set:
 
 ### 4. Schema and seed
 
-There is no migrations directory yet — the project uses `db:push`.
-
 ```bash
-npm run db:push        # create tables from prisma/schema.prisma
+npm run db:migrate     # create tables by applying prisma/migrations
 npm run db:seed        # users + business rules
 npm run db:seed:demo   # demo catalog (placeholder data)
 ```
+
+Schema changes go through a migration — `npm run db:migrate` prompts for a name,
+writes the SQL under `prisma/migrations/`, and applies it. Commit that folder:
+it is how staging and production get the same schema you have locally.
+
+`npm run db:push` still works and is quicker while iterating on the schema, but
+it leaves no migration behind. Anything pushed that way must be turned into a
+migration before it ships.
 
 ### 5. Run it
 
@@ -142,8 +148,8 @@ step in [src/lib/otp.ts](src/lib/otp.ts) — the schema and flow stay as they ar
 | `npm run lint` | ESLint |
 | `npm run test` | All unit tests (pricing, number-to-words, storage, lifecycle) |
 | `npm run db:generate` | Regenerate the Prisma client |
-| `npm run db:push` | Sync schema without a migration |
-| `npm run db:migrate` | Create a migration |
+| `npm run db:push` | Sync schema without a migration — local iteration only |
+| `npm run db:migrate` | Create and apply a migration — the path to staging/prod |
 | `npm run db:studio` | Prisma Studio |
 | `npm run db:seed` | Seed demo data |
 
