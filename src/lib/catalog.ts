@@ -89,6 +89,7 @@ export async function getParts(vehicleId: string) {
       partNo: true,
       name: true,
       packingUnit: true,
+      seatType: true,
       gstSlab: { select: { ratePct: true } },
     },
   });

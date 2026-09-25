@@ -4,7 +4,11 @@ import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/guard";
 import { db } from "@/lib/db";
 import type { PackingUnit } from "@prisma/client";
-import { orderDraftSchema, type OrderLineDraft } from "@/lib/order-draft";
+import {
+  lineDescription,
+  orderDraftSchema,
+  type OrderLineDraft,
+} from "@/lib/order-draft";
 import { calculateOrder, dealerDiscountPctNumber } from "@/lib/pricing";
 import {
   getCurrentPrice,
@@ -90,14 +94,24 @@ export async function createOrder(
       };
     }
 
+    // A missing GST slab must not silently price the line at 0% tax — that
+    // would put a wrong figure on the dealer's proforma invoice.
+    if (!partColour.part.gstSlab) {
+      return {
+        ok: false,
+        error: `No GST rate is set for ${partColour.productCode}. Admin must assign one before it can be ordered.`,
+      };
+    }
+
     pricedLines.push({
       ...line,
       unitPrice: price.unitPrice.toString(),
-      gstRatePct: partColour.part.gstSlab?.ratePct.toString() ?? "0",
+      gstRatePct: partColour.part.gstSlab.ratePct.toString(),
       productCode: partColour.productCode,
       partNo: partColour.part.partNo,
       partName: partColour.part.name,
-      colour: partColour.colour,
+      vehicleName: partColour.part.vehicle.name,
+      colour: partColour.colour ?? "",
       packingUnit: partColour.part.packingUnit,
     });
   }
@@ -195,7 +209,7 @@ export async function createOrder(
               return {
                 partColourId: l.partColourId,
                 productCode: l.productCode,
-                description: `${l.partNo} — ${l.partName} (${l.colour})`,
+                description: lineDescription(l),
                 packingUnit: l.packingUnit,
                 qty: l.qty,
                 unitPrice: l.unitPrice,

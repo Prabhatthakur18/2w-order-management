@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Loader2, TriangleAlert, Truck } from "lucide-react";
-import type { OrderDraft } from "@/lib/order-draft";
+import { lineDescription, type OrderDraft } from "@/lib/order-draft";
 import { CASH_DISCOUNT_PCT, type OrderTotals } from "@/lib/pricing";
 import { Button, Card } from "@/components/ui";
 import { Combobox } from "@/components/combobox";
@@ -107,7 +107,10 @@ export function StepReview({
             >
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">
-                  {l.partNo} — {l.colour}
+                  {lineDescription(l)}
+                </p>
+                <p className="font-mono text-[10px] text-muted-foreground">
+                  {l.productCode}
                 </p>
                 {/* Rate, not MRP — the dealer discount is folded in, matching
                     what the Proforma Invoice prints. */}

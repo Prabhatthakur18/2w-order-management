@@ -18,8 +18,10 @@ export const orderLineSchema = z.object({
   partNo: z.string(),
   partName: z.string(),
   partColourId: z.string().min(1),
+  // "" for products sold in a single, unnamed finish.
   colour: z.string(),
   productCode: z.string(),
+  seatType: z.enum(["SINGLE", "DUAL"]).nullable().default(null),
   packingUnit: z.enum(["PC", "SET"]),
   qty: z.number().int().positive(),
   unitPrice: z.string(),
@@ -29,6 +31,19 @@ export const orderLineSchema = z.object({
 });
 
 export type OrderLineDraft = z.infer<typeof orderLineSchema>;
+
+/**
+ * The line description persisted on OrderLine and printed on the PI and order
+ * PDF: style, then the vehicle it fits, then the colour when there is one —
+ * e.g. "U-ACTIVE — ACTIVA 6G (BLUE)". The SKU code is printed separately.
+ */
+export function lineDescription(l: {
+  partName: string;
+  vehicleName: string;
+  colour: string | null;
+}): string {
+  return `${l.partName} — ${l.vehicleName}${l.colour ? ` (${l.colour})` : ""}`;
+}
 
 export const orderDraftSchema = z.object({
   // Module 1 — parties & destination

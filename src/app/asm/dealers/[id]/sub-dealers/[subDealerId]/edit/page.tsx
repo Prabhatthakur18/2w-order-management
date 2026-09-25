@@ -32,11 +32,11 @@ export default async function EditSubDealerPage({
         initial={{
           gstin: subDealer.gstin ?? "",
           name: subDealer.name,
-          address: subDealer.address,
+          address: subDealer.address ?? "",
           city: subDealer.city ?? "",
           state: subDealer.state ?? "",
           pincode: subDealer.pincode ?? "",
-          contactNo: subDealer.contactNo,
+          contactNo: subDealer.contactNo ?? "",
           email: subDealer.email ?? "",
           gstLegalName: subDealer.gstLegalName ?? "",
           gstTradeName: subDealer.gstTradeName ?? "",

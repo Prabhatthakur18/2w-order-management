@@ -36,7 +36,7 @@ type PendingDealer = {
   state: string;
   pincode: string;
   contactName: string | null;
-  contactNo: string;
+  contactNo: string | null;
   email: string | null;
   createdAt: string;
   createdByName: string;
@@ -93,7 +93,7 @@ export function PendingDealerRow({ dealer }: { dealer: PendingDealer }) {
           <Phone className="h-3.5 w-3.5 shrink-0" />
           <span>
             {dealer.contactName ? `${dealer.contactName} — ` : ""}
-            {dealer.contactNo}
+            {dealer.contactNo ?? "No phone on file"}
           </span>
         </p>
         {dealer.email ? (
@@ -188,11 +188,11 @@ type PendingSubDealer = {
   id: string;
   name: string;
   dealerName: string;
-  address: string;
+  address: string | null;
   city: string | null;
   state: string | null;
   pincode: string | null;
-  contactNo: string;
+  contactNo: string | null;
   email: string | null;
   createdAt: string;
   createdByName: string;
@@ -249,13 +249,13 @@ export function PendingSubDealerRow({
         <p className="flex items-start gap-2">
           <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <span>
-            {subDealer.address}
+            {subDealer.address ?? "No address on file"}
             {location ? `, ${location}` : ""}
           </span>
         </p>
         <p className="flex items-center gap-2">
           <Phone className="h-3.5 w-3.5 shrink-0" />
-          <span>{subDealer.contactNo}</span>
+          <span>{subDealer.contactNo ?? "No phone on file"}</span>
         </p>
         {subDealer.email ? (
           <p className="flex items-center gap-2">

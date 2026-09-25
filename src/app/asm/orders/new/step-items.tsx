@@ -15,9 +15,25 @@ type PartOption = {
   partNo: string;
   name: string;
   packingUnit: "PC" | "SET";
-  gstRatePct: string;
+  seatType: "SINGLE" | "DUAL" | null;
+  /** null when Admin has not assigned a GST slab — the item cannot be ordered. */
+  gstRatePct: string | null;
 };
-type ColourOption = { id: string; colour: string; productCode: string };
+type ColourOption = { id: string; colour: string | null; productCode: string };
+
+const SEAT_LABEL = { SINGLE: "Single seat", DUAL: "Dual seat" } as const;
+
+/** Colourless products are sold in one unnamed finish. */
+function colourLabel(colour: string | null): string {
+  return colour || "Standard";
+}
+
+/** "Single seat · PCS" — the attributes that tell two styles apart. */
+function partMeta(p: { seatType: PartOption["seatType"]; packingUnit: string }) {
+  return [p.seatType ? SEAT_LABEL[p.seatType] : null, p.packingUnit]
+    .filter(Boolean)
+    .join(" · ");
+}
 
 /**
  * Module 2 — cascading catalog selection. Each level is fetched from the
@@ -78,7 +94,12 @@ export function StepItems({
       setColours([]);
       return;
     }
-    startTransition(async () => setColours(await loadColours(partId)));
+    startTransition(async () => {
+      const next = await loadColours(partId);
+      setColours(next);
+      // Most styles come in exactly one finish; don't make the ASM pick it.
+      if (next.length === 1) setColourId(next[0].id);
+    });
   }, [partId]);
 
   useEffect(() => {
@@ -98,13 +119,17 @@ export function StepItems({
   const vehicle = vehicles.find((v) => v.id === vehicleId);
   const qtyNum = Number(qty);
 
+  const gstMissing = Boolean(part && part.gstRatePct === null);
+
   const canAdd =
     Boolean(colour && part && oem && vehicle && price) &&
+    !gstMissing &&
     Number.isInteger(qtyNum) &&
     qtyNum > 0;
 
   function addLine() {
     if (!canAdd || !colour || !part || !oem || !vehicle || !price) return;
+    if (part.gstRatePct === null) return;
 
     const line: OrderLineDraft = {
       key: `${colour.id}-${Date.now()}`,
@@ -116,8 +141,9 @@ export function StepItems({
       partNo: part.partNo,
       partName: part.name,
       partColourId: colour.id,
-      colour: colour.colour,
+      colour: colour.colour ?? "",
       productCode: colour.productCode,
+      seatType: part.seatType,
       packingUnit: part.packingUnit,
       qty: qtyNum,
       unitPrice: price,
@@ -201,28 +227,32 @@ export function StepItems({
             />
           </Field>
 
-          <Field label="Part number" htmlFor="part" required>
+          <Field label="Style" htmlFor="part" required>
             <Combobox
               options={parts.map((p) => ({
                 value: p.id,
                 label: p.name,
-                meta: p.partNo,
+                meta: partMeta(p),
               }))}
               value={partId}
               onChange={setPartId}
-              placeholder={vehicleId ? "Select part" : "Select a vehicle first"}
-              searchPlaceholder="Search parts or part no…"
+              placeholder={vehicleId ? "Select style" : "Select a vehicle first"}
+              searchPlaceholder="Search styles…"
               disabled={!vehicleId || pending}
             />
           </Field>
 
           <Field label="Colour" htmlFor="colour" required>
             <Combobox
-              options={colours.map((c) => ({ value: c.id, label: c.colour }))}
+              options={colours.map((c) => ({
+                value: c.id,
+                label: colourLabel(c.colour),
+                meta: c.productCode,
+              }))}
               value={colourId}
               onChange={setColourId}
-              placeholder={partId ? "Select colour" : "Select a part first"}
-              searchPlaceholder="Search colours…"
+              placeholder={partId ? "Select colour" : "Select a style first"}
+              searchPlaceholder="Search colours or codes…"
               disabled={!partId || pending}
             />
           </Field>
@@ -253,6 +283,14 @@ export function StepItems({
             </Field>
           </div>
 
+          {gstMissing ? (
+            <p className="flex items-start gap-2 rounded-xl bg-warning/10 p-3 text-xs font-medium text-warning">
+              <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+              No GST rate is set for this style. Admin must assign one before it
+              can be ordered.
+            </p>
+          ) : null}
+
           {priceMissing ? (
             <p className="flex items-start gap-2 rounded-xl bg-warning/10 p-3 text-xs font-medium text-warning">
               <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
@@ -276,10 +314,12 @@ export function StepItems({
             />
           </Field>
 
-          {part ? (
+          {colour ? (
             <p className="text-xs text-muted-foreground">
-              Part no:{" "}
-              <span className="font-mono font-semibold">{part.partNo}</span>
+              Code:{" "}
+              <span className="font-mono font-semibold text-foreground">
+                {colour.productCode}
+              </span>
             </p>
           ) : null}
 
@@ -303,19 +343,25 @@ export function StepItems({
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold">
-                    {l.partNo} — {l.partName}
+                    {l.partName} — {l.vehicleName}
                   </p>
                   <p className="truncate text-xs text-muted-foreground">
-                    {l.oemName} · {l.vehicleName} · {l.colour}
+                    {[
+                      l.oemName,
+                      l.seatType ? SEAT_LABEL[l.seatType] : null,
+                      colourLabel(l.colour),
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
                   </p>
                   <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">
-                    {l.partNo}
+                    {l.productCode}
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => removeLine(l.key)}
-                  aria-label={`Remove ${l.partNo}`}
+                  aria-label={`Remove ${l.productCode}`}
                   className="flex h-8 min-h-0 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
                 >
                   <Trash2 className="h-4 w-4" />

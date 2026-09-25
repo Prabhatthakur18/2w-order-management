@@ -28,6 +28,7 @@ const L = (
   partName: "Part",
   partColourId: "pc",
   colour: "Black",
+  seatType: null,
   productCode: "CODE",
   packingUnit: "PC",
   qty,
