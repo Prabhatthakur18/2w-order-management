@@ -35,7 +35,7 @@ export default async function EditDealerPage({
           state: dealer.state,
           pincode: dealer.pincode,
           contactName: dealer.contactName ?? "",
-          contactNo: dealer.contactNo,
+          contactNo: dealer.contactNo ?? "",
           email: dealer.email ?? "",
           gstLegalName: dealer.gstLegalName ?? "",
           gstTradeName: dealer.gstTradeName ?? "",

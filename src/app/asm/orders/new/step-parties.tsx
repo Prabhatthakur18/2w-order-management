@@ -220,7 +220,7 @@ export function StepParties({
                 value={dealer.contactName}
               />
             ) : null}
-            <DealerDetailRow label="Contact number" value={dealer.contactNo} />
+            <DealerDetailRow label="Contact number" value={dealer.contactNo ?? "—"} />
             <DealerDetailRow
               label="Address"
               value={`${dealer.address}, ${dealer.city}, ${dealer.state} — ${dealer.pincode}`}

@@ -107,7 +107,7 @@ export function renderProformaInvoice(
         <td class="num">${i + 1}</td>
         <td>
           <div class="strong">${esc(l.description)}</div>
-          <div class="muted italic">${esc(modelCode(l.productCode))}</div>
+          <div class="muted italic">${esc(l.productCode)}</div>
         </td>
         <td class="num">${esc(l.gstRatePct.toString())} %</td>
         <td class="num">${esc(l.qty.toString())}.00 ${esc(l.packingUnit)}</td>
@@ -320,15 +320,6 @@ function printingFrameText(frame: OrderForPi["printingFrame"]): string {
   const text = (frame.contentText ?? "").trim();
   if (!text) return "Content attached";
   return text.length > 120 ? `${text.slice(0, 120)}…` : text;
-}
-
-/**
- * OEM and vehicle only, from a full product code — the part and colour are
- * already named in the description, so repeating them under it is noise.
- * "HONDA-ACT6G-AC-FM-003-BLA" -> "HONDA-ACT6G".
- */
-function modelCode(productCode: string): string {
-  return productCode.split("-").slice(0, 2).join("-");
 }
 
 /** Plain 2dp with thousands separators — the table shows bare figures, no ₹. */

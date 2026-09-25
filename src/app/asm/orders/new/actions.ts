@@ -76,7 +76,10 @@ export async function loadParts(vehicleId: string) {
     partNo: p.partNo,
     name: p.name,
     packingUnit: p.packingUnit,
-    gstRatePct: p.gstSlab ? p.gstSlab.ratePct.toString() : "0",
+    seatType: p.seatType,
+    // null, not "0": a missing slab is a master-data gap the ASM must see,
+    // never a 0% tax rate. The server refuses such lines as well.
+    gstRatePct: p.gstSlab ? p.gstSlab.ratePct.toString() : null,
   }));
 }
 

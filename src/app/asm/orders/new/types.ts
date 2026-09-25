@@ -7,7 +7,7 @@ export type DealerOption = {
   state: string;
   pincode: string;
   contactName: string | null;
-  contactNo: string;
+  contactNo: string | null;
   gstin: string | null;
   creditLimit: string | null;
   creditDays: number | null;
@@ -37,13 +37,13 @@ export type DealerDetail = {
   city: string;
   state: string;
   pincode: string;
-  contactNo: string;
+  contactNo: string | null;
   priceTierId: string | null;
   subDealers: {
     id: string;
     name: string;
-    address: string;
-    contactNo: string;
+    address: string | null;
+    contactNo: string | null;
   }[];
   printingFrames: {
     id: string;
