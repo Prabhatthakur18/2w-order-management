@@ -73,8 +73,11 @@ Then open `.env` and set:
 ```bash
 npm run db:migrate     # create tables by applying prisma/migrations
 npm run db:seed        # users + business rules
-npm run db:seed:demo   # demo catalog (placeholder data)
+npm run db:import -- "path/to/master.xlsx" --apply   # real catalog, MRP, dealers
 ```
+
+`db:seed:demo` still loads a small placeholder catalog if you have no master
+workbook to hand; skip it when you import the real one.
 
 Schema changes go through a migration — `npm run db:migrate` prompts for a name,
 writes the SQL under `prisma/migrations/`, and applies it. Commit that folder:
@@ -83,6 +86,25 @@ it is how staging and production get the same schema you have locally.
 `npm run db:push` still works and is quicker while iterating on the schema, but
 it leaves no migration behind. Anything pushed that way must be turned into a
 migration before it ships.
+
+### Importing master data
+
+The business keeps products (with MRP), dealers and sub-dealers in one Excel
+workbook. Load it with:
+
+```bash
+npm run db:import -- "path/to/master.xlsx"                       # dry run
+npm run db:import -- "path/to/master.xlsx" --apply               # write
+npm run db:import -- "path/to/master.xlsx" --report issues.csv   # issue list
+```
+
+It always dry-runs unless given `--apply`, and prints every row it skipped or
+corrected with its spreadsheet row number — hand `--report` to whoever owns the
+sheet. Re-running is safe: it upserts on SKU and dealer codes, writes only the
+columns the sheet carries, records a changed MRP as a new date-effective
+price, and deactivates (never deletes) SKUs that are no longer listed. Each
+style is linked to the GST slab for its rate; placed orders keep the rate they
+were placed at. The rules are in `src/lib/master-import.ts`.
 
 ### 5. Run it
 
@@ -146,12 +168,14 @@ step in [src/lib/otp.ts](src/lib/otp.ts) — the schema and flow stay as they ar
 | `npm run build` | Production build |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run lint` | ESLint |
-| `npm run test` | All unit tests (pricing, number-to-words, storage, lifecycle) |
+| `npm run test` | All unit tests (pricing, number-to-words, storage, lifecycle, master import) |
 | `npm run db:generate` | Regenerate the Prisma client |
 | `npm run db:push` | Sync schema without a migration — local iteration only |
 | `npm run db:migrate` | Create and apply a migration — the path to staging/prod |
 | `npm run db:studio` | Prisma Studio |
-| `npm run db:seed` | Seed demo data |
+| `npm run db:seed` | Users + business rules |
+| `npm run db:seed:demo` | Placeholder catalog (when no master workbook) |
+| `npm run db:import` | Import the master workbook — dry run unless `--apply` |
 
 ## Conventions
 
